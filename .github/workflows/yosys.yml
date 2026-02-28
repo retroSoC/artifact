@@ -69,16 +69,20 @@ jobs:
           echo "Download install shell script and run it"
           curl -LsSf https://astral.sh/uv/install.sh | sh
 
-      # - name: Compile Yosys
-      #   if: env.SKIP_BUILD == 'false'
-      #   run: |
-      #     cd yosys
-      #     make config-gcc
-      #     make -j$(nproc)
-      #     # Install to staging directory using DESTDIR to ensure standard directory structure (bin/ and share/)
-      #     make PREFIX=/usr/local DESTDIR=$PWD/staging install
-      #     echo "print install dir"
-      #     ls staging/usr/local
+      - name: Compile Yosys
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          cd yosys
+          make config-gcc
+          make -j$(nproc)
+          # Install to staging directory using DESTDIR to ensure standard directory structure (bin/ and share/)
+          make install
+          yosys --version
+          yosys-config --help
+          make PREFIX=/usr/local DESTDIR=$PWD/staging install
+          echo "print install dir"
+          ls staging/usr/local/bin
+          ls staging/usr/local/share
 
 
       - name: Compile Yosys-Slang Plugin
