@@ -76,7 +76,7 @@ jobs:
           make config-gcc
           make -j$(nproc)
           # Install to staging directory using DESTDIR to ensure standard directory structure (bin/ and share/)
-          make install
+          sudo make install
           yosys --version
           yosys-config --help
           make PREFIX=/usr/local DESTDIR=$PWD/staging install
