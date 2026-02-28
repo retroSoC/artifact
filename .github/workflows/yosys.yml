@@ -85,8 +85,7 @@ jobs:
         if: env.SKIP_BUILD == 'false'
         run: |
           git clone --recursive https://github.com/povik/yosys-slang
-          mkdir build
-          cd build
+          cd yosys-slang/build
           cmake ..
           make -j$(nproc)
           echo "print install dir"
