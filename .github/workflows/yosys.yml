@@ -64,7 +64,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gawk git make python3 lld bison clang flex \
             libffi-dev libfl-dev libreadline-dev pkg-config tcl-dev zlib1g-dev \
-            graphviz xdot build-essential
+            graphviz xdot build-essential cmake
           curl -LsSf https://astral.sh/uv/install.sh | sh
 
       - name: Compile Yosys
@@ -75,44 +75,56 @@ jobs:
           make -j$(nproc)
           # Install to staging directory using DESTDIR to ensure standard directory structure (bin/ and share/)
           make PREFIX=/usr/local DESTDIR=$PWD/staging install
+          echo "print install dir"
+          ls staging/usr/local
 
-      - name: Package Artifacts and Generate SHA256 (Ready-to-use + Integrity verification)
+
+      - name: Compile Yosys-Slang Plugin
         if: env.SKIP_BUILD == 'false'
         run: |
-          cd yosys/staging/usr/local
-          # Package files removing prefix paths; bin/yosys will be at the root after extraction
-          tar -czvf ../../../yosys-linux-x64-${{ env.VERSION }}.tar.gz *
-          cd ../../..
-          # Generate SHA256 checksum
-          sha256sum yosys-linux-x64-${{ env.VERSION }}.tar.gz > yosys-linux-x64-${{ env.VERSION }}.tar.gz.sha256
+          git clone --recursive https://github.com/povik/yosys-slang
+          make -j$(nproc)
+          echo "print install dir"
+          ls ..
+          cp -rf build/slang.so ..
 
-      - name: Upload to Actions Artifacts(Temporary storage)
-        if: env.SKIP_BUILD == 'false'
-        uses: actions/upload-artifact@v4
-        with:
-          name: yosys-linux-x64-${{ env.VERSION }}
-          path: |
-            yosys-linux-x64-${{ env.VERSION }}.tar.gz
-            yosys-linux-x64-${{ env.VERSION }}.tar.gz.sha256
-          retention-days: 90 # Retain for 90 days
+      # - name: Package Artifacts and Generate SHA256 (Ready-to-use + Integrity verification)
+      #   if: env.SKIP_BUILD == 'false'
+      #   run: |
+      #     cd yosys/staging/usr/local
+      #     # Package files removing prefix paths; bin/yosys will be at the root after extraction
+      #     tar -czvf ../../../yosys-linux-x64-${{ env.VERSION }}.tar.gz *
+      #     cd ../../..
+      #     # Generate SHA256 checksum
+      #     sha256sum yosys-linux-x64-${{ env.VERSION }}.tar.gz > yosys-linux-x64-${{ env.VERSION }}.tar.gz.sha256
 
-      - name: Publish to GitHub Releases (Permanent release)
-        if: env.SKIP_BUILD == 'false'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.VERSION }}
-          name: "Yosys ${{ env.VERSION }}"
-          body: |
-            Automated build of Yosys ${{ env.VERSION }}.
+      # - name: Upload to Actions Artifacts(Temporary storage)
+      #   if: env.SKIP_BUILD == 'false'
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: yosys-linux-x64-${{ env.VERSION }}
+      #     path: |
+      #       yosys-linux-x64-${{ env.VERSION }}.tar.gz
+      #       yosys-linux-x64-${{ env.VERSION }}.tar.gz.sha256
+      #     retention-days: 90 # Retain for 90 days
 
-            **Build Commit Source:** https://github.com/YosysHQ/yosys/tree/${{ env.VERSION }}
+      # - name: Publish to GitHub Releases (Permanent release)
+      #   if: env.SKIP_BUILD == 'false'
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     tag_name: ${{ env.VERSION }}
+      #     name: "Yosys ${{ env.VERSION }}"
+      #     body: |
+      #       Automated build of Yosys ${{ env.VERSION }}.
+
+      #       **Build Commit Source:** https://github.com/YosysHQ/yosys/tree/${{ env.VERSION }}
             
-            ### 🚀 Ready to use (How to use)
-            1. Download `yosys-linux-x64-${{ env.VERSION }}.tar.gz`
-            2. Extract: `tar -xzvf yosys-linux-x64-${{ env.VERSION }}.tar.gz`
-            3. Run: `./bin/yosys`
+      #       ### 🚀 Ready to use (How to use)
+      #       1. Download `yosys-linux-x64-${{ env.VERSION }}.tar.gz`
+      #       2. Extract: `tar -xzvf yosys-linux-x64-${{ env.VERSION }}.tar.gz`
+      #       3. Run: `./bin/yosys`
             
-            *This archive has been pre-configured with relative paths for 'share'. No need to run `make install` or configure environment variables—simply extract and run.*
-          files: |
-            yosys-linux-x64-${{ env.VERSION }}.tar.gz
-            yosys-linux-x64-${{ env.VERSION }}.tar.gz.sha256
+      #       *This archive has been pre-configured with relative paths for 'share'. No need to run `make install` or configure environment variables—simply extract and run.*
+      #     files: |
+      #       yosys-linux-x64-${{ env.VERSION }}.tar.gz
+      #       yosys-linux-x64-${{ env.VERSION }}.tar.gz.sha256
