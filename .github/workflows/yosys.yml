@@ -79,10 +79,12 @@ jobs:
           sudo make install
           yosys --version
           yosys-config --help
-          make PREFIX=/usr/local DESTDIR=$PWD/staging install
+          make DESTDIR=$PWD/staging install
           echo "print install dir"
-          ls staging/usr/local/bin
-          ls staging/usr/local/share
+          ls staging/bin
+          ls staging/share/yosys
+          mkdir -p staging/share/yosys/plugins
+          cd ..
 
 
       - name: Compile Yosys-Slang Plugin
@@ -93,8 +95,10 @@ jobs:
           cmake ..
           make -j$(nproc)
           echo "print install dir"
-          ls ..
-          cp -rf build/slang.so ..
+          ls ../../yosys
+          cp -rf slang.so ../../yosys/staging/share/yosys/plugins
+          ls ../../yosys/staging/share/yosys
+          ls ../../yosys/staging/share/yosys/plugins
 
       # - name: Package Artifacts and Generate SHA256 (Ready-to-use + Integrity verification)
       #   if: env.SKIP_BUILD == 'false'
