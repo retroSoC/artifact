@@ -86,7 +86,7 @@ jobs:
           # Generate SHA256 checksum
           sha256sum yosys-linux-x64-${{ env.VERSION }}.tar.gz > yosys-linux-x64-${{ env.VERSION }}.tar.gz.sha256
 
-      - name: Upload to Actions Artifacts (Dual backup: Temporary storage)
+      - name: Upload to Actions Artifacts(Temporary storage)
         if: env.SKIP_BUILD == 'false'
         uses: actions/upload-artifact@v4
         with:
@@ -96,7 +96,7 @@ jobs:
             yosys-linux-x64-${{ env.VERSION }}.tar.gz.sha256
           retention-days: 90 # Retain for 90 days
 
-      - name: Publish to GitHub Releases (Dual backup: Permanent release)
+      - name: Publish to GitHub Releases (Permanent release)
         if: env.SKIP_BUILD == 'false'
         uses: softprops/action-gh-release@v2
         with:
