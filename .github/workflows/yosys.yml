@@ -37,7 +37,7 @@ jobs:
 
       - name: Clone Official Yosys Repository
         run: |
-          git clone https://github.com/YosysHQ/yosys.git
+          git clone --recurse-submodules https://github.com/YosysHQ/yosys.git
           cd yosys
           git checkout ${{ env.REF }}
           # Use official Tag or Commit Hash as the version number
