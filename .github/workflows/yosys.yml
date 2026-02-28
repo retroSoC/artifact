@@ -81,9 +81,9 @@ jobs:
           yosys-config --help
           make DESTDIR=$PWD/staging install
           echo "print install dir"
-          ls staging/bin
-          ls staging/share/yosys
-          mkdir -p staging/share/yosys/plugins
+          ls staging/usr/local/bin
+          ls staging/usr/local/share/yosys
+          mkdir -p staging/usr/local/share/yosys/plugins
           cd ..
 
 
@@ -96,9 +96,9 @@ jobs:
           make -j$(nproc)
           echo "print install dir"
           ls ../../yosys
-          cp -rf slang.so ../../yosys/staging/share/yosys/plugins
-          ls ../../yosys/staging/share/yosys
-          ls ../../yosys/staging/share/yosys/plugins
+          cp -rf slang.so ../../yosys/staging/usr/local/share/yosys/plugins
+          ls ../../yosys/staging/usr/local/share/yosys
+          ls ../../yosys/staging/usr/local/share/yosys/plugins
 
       # - name: Package Artifacts and Generate SHA256 (Ready-to-use + Integrity verification)
       #   if: env.SKIP_BUILD == 'false'
