@@ -55,9 +55,11 @@ jobs:
           if gh release view "${{ env.VERSION }}" --repo ${{ github.repository }} > /dev/null 2>&1; then
             echo "Release ${{ env.VERSION }} already exists! Skipping build."
             echo "SKIP_BUILD=true" >> $GITHUB_ENV
-            echo "YOSYS_PACKAGE_NAME=${{ runner.os }}-${{ runner.image }}-${{ runner.arch }}-${{ env.VERSION }}.tar.gz" >> $GITHUB_ENV
           else
             echo "SKIP_BUILD=false" >> $GITHUB_ENV
+            echo "YOSYS_PACKAGE_NAME=${{ runner.os }}-${{ runner.image }}-${{ runner.arch }}-${{ env.VERSION }}.tar.gz" >> $GITHUB_ENV
+            echo ${{ env.YOSYS_PACKAGE_NAME }}
+            exit 1
           fi
 
       - name: Install Build Dependencies (Full compilation environment)
