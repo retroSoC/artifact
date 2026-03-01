@@ -58,7 +58,7 @@ jobs:
           else
             echo "SKIP_BUILD=false" >> $GITHUB_ENV
             echo "YOSYS_PACKAGE_NAME=${{ runner.os }}-${{ runner.image }}-${{ runner.arch }}-${{ env.VERSION }}.tar.gz" >> $GITHUB_ENV
-            echo ${{ env.YOSYS_PACKAGE_NAME }}
+            echo "PACKAGE NAME: ${{ env.YOSYS_PACKAGE_NAME }}"
             exit 1
           fi
 
