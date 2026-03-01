@@ -71,14 +71,12 @@ jobs:
       - name: Install Build Dependencies (Full compilation environment)
         if: env.SKIP_BUILD == 'false'
         run: |
-          echo "PACKAGE NAME: ${{ env.PACKAGE_NAME }}"
           sudo apt-get update
           sudo apt-get install -y gawk git make python3 lld bison clang flex \
             libffi-dev libfl-dev libreadline-dev pkg-config tcl-dev zlib1g-dev \
             graphviz xdot build-essential cmake
           echo "Download install shell script and run it"
           curl -LsSf https://astral.sh/uv/install.sh | sh
-          exit 1
 
       - name: Compile Yosys
         if: env.SKIP_BUILD == 'false'
@@ -110,10 +108,12 @@ jobs:
           cp -rf slang.so ../../yosys/staging/usr/local/share/yosys/plugins
           ls ../../yosys/staging/usr/local/share/yosys
           ls ../../yosys/staging/usr/local/share/yosys/plugins
+          cd ../..
 
       - name: Package Artifacts and Generate SHA256 (Ready-to-use + Integrity verification)
         if: env.SKIP_BUILD == 'false'
         run: |
+          echo "PACKAGE NAME: ${{ env.PACKAGE_NAME }}"
           cd yosys/staging/usr/local
           # Package files removing prefix paths; bin/yosys will be at the root after extraction
           tar -czvf ../../../${{ env.PACKAGE_NAME }}.tar.gz *
