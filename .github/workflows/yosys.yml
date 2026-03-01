@@ -106,10 +106,10 @@ jobs:
         run: |
           cd yosys/staging/usr/local
           # Package files removing prefix paths; bin/yosys will be at the root after extraction
-          tar -czvf ../../../${{ YOSYS_PACKAGE_NAME }}.tar.gz *
+          tar -czvf ../../../${{ env.YOSYS_PACKAGE_NAME }}.tar.gz *
           cd ../../..
           # Generate SHA256 checksum
-          sha256sum ${{ YOSYS_PACKAGE_NAME }}.tar.gz > ${{ YOSYS_PACKAGE_NAME }}.tar.gz.sha256
+          sha256sum ${{ env.YOSYS_PACKAGE_NAME }}.tar.gz > ${{ env.YOSYS_PACKAGE_NAME }}.tar.gz.sha256
           echo "== PRINT CURRENT DIR =="
           ls .
 
@@ -117,10 +117,10 @@ jobs:
         if: env.SKIP_BUILD == 'false'
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ YOSYS_PACKAGE_NAME }}
+          name: ${{ env.YOSYS_PACKAGE_NAME }}
           path: |
-            ${{ YOSYS_PACKAGE_NAME }}.tar.gz
-            ${{ YOSYS_PACKAGE_NAME }}.tar.gz.sha256
+            ${{ env.YOSYS_PACKAGE_NAME }}.tar.gz
+            ${{ env.YOSYS_PACKAGE_NAME }}.tar.gz.sha256
           retention-days: 90 # Retain for 90 days
 
       # - name: Publish to GitHub Releases (Permanent release)
@@ -135,11 +135,11 @@ jobs:
       #       **Build Commit Source:** https://github.com/YosysHQ/yosys/tree/${{ env.VERSION }}
             
       #       ### 🚀 Ready to use (How to use)
-      #       1. Download `${{ YOSYS_PACKAGE_NAME }}.tar.gz`
-      #       2. Extract: `tar -xzvf ${{ YOSYS_PACKAGE_NAME }}.tar.gz`
+      #       1. Download `${{ env.YOSYS_PACKAGE_NAME }}.tar.gz`
+      #       2. Extract: `tar -xzvf ${{ env.YOSYS_PACKAGE_NAME }}.tar.gz`
       #       3. Run: `./bin/yosys`
             
       #       *This archive has been pre-configured with relative paths for 'share'. No need to run `make install` or configure environment variables—simply extract and run.*
       #     files: |
-      #       ${{ YOSYS_PACKAGE_NAME }}.tar.gz
-      #       ${{ YOSYS_PACKAGE_NAME }}.tar.gz.sha256
+      #       ${{ env.YOSYS_PACKAGE_NAME }}.tar.gz
+      #       ${{ env.YOSYS_PACKAGE_NAME }}.tar.gz.sha256
