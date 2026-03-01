@@ -80,7 +80,7 @@ jobs:
           yosys --version
           yosys-config --help
           make DESTDIR=$PWD/staging install
-          echo "print install dir"
+          echo "== PRINT INSTALL DIR =="
           ls staging/usr/local/bin
           ls staging/usr/local/share/yosys
           mkdir -p staging/usr/local/share/yosys/plugins
@@ -94,21 +94,23 @@ jobs:
           cd yosys-slang/build
           cmake ..
           make -j$(nproc)
-          echo "print install dir"
+          echo "== PRINT INSTALL DIR =="
           ls ../../yosys
           cp -rf slang.so ../../yosys/staging/usr/local/share/yosys/plugins
           ls ../../yosys/staging/usr/local/share/yosys
           ls ../../yosys/staging/usr/local/share/yosys/plugins
 
-      # - name: Package Artifacts and Generate SHA256 (Ready-to-use + Integrity verification)
-      #   if: env.SKIP_BUILD == 'false'
-      #   run: |
-      #     cd yosys/staging/usr/local
-      #     # Package files removing prefix paths; bin/yosys will be at the root after extraction
-      #     tar -czvf ../../../yosys-linux-x64-${{ env.VERSION }}.tar.gz *
-      #     cd ../../..
-      #     # Generate SHA256 checksum
-      #     sha256sum yosys-linux-x64-${{ env.VERSION }}.tar.gz > yosys-linux-x64-${{ env.VERSION }}.tar.gz.sha256
+      - name: Package Artifacts and Generate SHA256 (Ready-to-use + Integrity verification)
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          cd yosys/staging/usr/local
+          # Package files removing prefix paths; bin/yosys will be at the root after extraction
+          tar -czvf ../../../yosys-linux-x64-${{ env.VERSION }}.tar.gz *
+          cd ../../..
+          # Generate SHA256 checksum
+          sha256sum yosys-linux-x64-${{ env.VERSION }}.tar.gz > yosys-linux-x64-${{ env.VERSION }}.tar.gz.sha256
+          echo "== PRINT CURRENT DIR =="
+          ls .
 
       # - name: Upload to Actions Artifacts(Temporary storage)
       #   if: env.SKIP_BUILD == 'false'
