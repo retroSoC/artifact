@@ -4,8 +4,13 @@ on:
   # 1. Manual trigger (Can specify branch/tag/commit)
   workflow_dispatch:
     inputs:
-      yosys_ref:
-        description: 'Yosys branch, tag, or commit hash to build'
+      runner_version:
+        description: 'runner version to build'
+        required: true
+        default: 'ubuntu-22.04'
+
+      repo_version:
+        description: 'repo branch, tag, or commit hash to build'
         required: true
         default: 'v0.58'
   # 2. Scheduled automatic update check (Every Monday at 02:00 UTC)
@@ -29,17 +34,21 @@ jobs:
       - name: Determine Target Version
         id: target
         run: |
-          REF="master"
+          RUNNER_VERSION="ubuntu-22.04"
+          REPO_VERSION="master"
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            REF="${{ github.event.inputs.yosys_ref }}"
+            RUNNER_VERSION="${{ github.event.inputs.runner_version }}"
+            REPO_VERSION="${{ github.event.inputs.repo_version }}"
           fi
-          echo "REF=$REF" >> $GITHUB_ENV
+          echo "RUNNER_VERSION=$REPO_VERSION" >> $GITHUB_ENV
+          echo "REPO_VERSION=$REPO_VERSION" >> $GITHUB_ENV
+
 
       - name: Clone Official Yosys Repository
         run: |
           git clone https://github.com/YosysHQ/yosys.git
           cd yosys
-          git checkout ${{ env.REF }}
+          git checkout ${{ env.REPO_VERSION }}
           git submodule update --init --recursive
           # Use official Tag or Commit Hash as the version number
           VERSION=$(git describe --tags --always)
@@ -57,8 +66,8 @@ jobs:
             echo "SKIP_BUILD=true" >> $GITHUB_ENV
           else
             echo "SKIP_BUILD=false" >> $GITHUB_ENV
-            echo "YOSYS_PACKAGE_NAME=${{ runner.os }}-${{ runner.image }}-${{ runner.arch }}-${{ env.VERSION }}.tar.gz" >> $GITHUB_ENV
-            echo "PACKAGE NAME: ${{ env.YOSYS_PACKAGE_NAME }}"
+            echo "PACKAGE_NAME=${{ runner.os }}-${{ env.RUNNER_VERSION }}-${{ runner.arch }}-${{ env.VERSION }}.tar.gz" >> $GITHUB_ENV
+            echo "PACKAGE NAME: ${{ env.PACKAGE_NAME }}"
             exit 1
           fi
 
@@ -108,10 +117,10 @@ jobs:
         run: |
           cd yosys/staging/usr/local
           # Package files removing prefix paths; bin/yosys will be at the root after extraction
-          tar -czvf ../../../${{ env.YOSYS_PACKAGE_NAME }}.tar.gz *
+          tar -czvf ../../../${{ env.PACKAGE_NAME }}.tar.gz *
           cd ../../..
           # Generate SHA256 checksum
-          sha256sum ${{ env.YOSYS_PACKAGE_NAME }}.tar.gz > ${{ env.YOSYS_PACKAGE_NAME }}.tar.gz.sha256
+          sha256sum ${{ env.PACKAGE_NAME }}.tar.gz > ${{ env.PACKAGE_NAME }}.tar.gz.sha256
           echo "== PRINT CURRENT DIR =="
           ls .
 
@@ -119,10 +128,10 @@ jobs:
         if: env.SKIP_BUILD == 'false'
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.YOSYS_PACKAGE_NAME }}
+          name: ${{ env.PACKAGE_NAME }}
           path: |
-            ${{ env.YOSYS_PACKAGE_NAME }}.tar.gz
-            ${{ env.YOSYS_PACKAGE_NAME }}.tar.gz.sha256
+            ${{ env.PACKAGE_NAME }}.tar.gz
+            ${{ env.PACKAGE_NAME }}.tar.gz.sha256
           retention-days: 90 # Retain for 90 days
 
       # - name: Publish to GitHub Releases (Permanent release)
@@ -137,11 +146,11 @@ jobs:
       #       **Build Commit Source:** https://github.com/YosysHQ/yosys/tree/${{ env.VERSION }}
             
       #       ### 🚀 Ready to use (How to use)
-      #       1. Download `${{ env.YOSYS_PACKAGE_NAME }}.tar.gz`
-      #       2. Extract: `tar -xzvf ${{ env.YOSYS_PACKAGE_NAME }}.tar.gz`
+      #       1. Download `${{ env.PACKAGE_NAME }}.tar.gz`
+      #       2. Extract: `tar -xzvf ${{ env.PACKAGE_NAME }}.tar.gz`
       #       3. Run: `./bin/yosys`
             
       #       *This archive has been pre-configured with relative paths for 'share'. No need to run `make install` or configure environment variables—simply extract and run.*
       #     files: |
-      #       ${{ env.YOSYS_PACKAGE_NAME }}.tar.gz
-      #       ${{ env.YOSYS_PACKAGE_NAME }}.tar.gz.sha256
+      #       ${{ env.PACKAGE_NAME }}.tar.gz
+      #       ${{ env.PACKAGE_NAME }}.tar.gz.sha256
