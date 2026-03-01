@@ -66,18 +66,19 @@ jobs:
           else
             echo "SKIP_BUILD=false" >> $GITHUB_ENV
             echo "PACKAGE_NAME=${{ runner.os }}-${{ env.RUNNER_VERSION }}-${{ runner.arch }}-${{ env.VERSION }}" >> $GITHUB_ENV
-            echo "PACKAGE NAME: ${{ env.PACKAGE_NAME }}"
           fi
 
       - name: Install Build Dependencies (Full compilation environment)
         if: env.SKIP_BUILD == 'false'
         run: |
+          echo "PACKAGE NAME: ${{ env.PACKAGE_NAME }}"
           sudo apt-get update
           sudo apt-get install -y gawk git make python3 lld bison clang flex \
             libffi-dev libfl-dev libreadline-dev pkg-config tcl-dev zlib1g-dev \
             graphviz xdot build-essential cmake
           echo "Download install shell script and run it"
           curl -LsSf https://astral.sh/uv/install.sh | sh
+          exit 1
 
       - name: Compile Yosys
         if: env.SKIP_BUILD == 'false'
