@@ -65,7 +65,7 @@ jobs:
             echo "SKIP_BUILD=true" >> $GITHUB_ENV
           else
             echo "SKIP_BUILD=false" >> $GITHUB_ENV
-            echo "PACKAGE_NAME=${{ runner.os }}-${{ env.RUNNER_VERSION }}-${{ runner.arch }}-${{ env.VERSION }" >> $GITHUB_ENV
+            echo "PACKAGE_NAME=${{ runner.os }}-${{ env.RUNNER_VERSION }}-${{ runner.arch }}-${{ env.VERSION }}" >> $GITHUB_ENV
             echo "PACKAGE NAME: ${{ env.PACKAGE_NAME }}"
             exit 1
           fi
