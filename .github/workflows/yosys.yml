@@ -55,6 +55,7 @@ jobs:
           if gh release view "${{ env.VERSION }}" --repo ${{ github.repository }} > /dev/null 2>&1; then
             echo "Release ${{ env.VERSION }} already exists! Skipping build."
             echo "SKIP_BUILD=true" >> $GITHUB_ENV
+            echo "YOSYS_PACKAGE_NAME=${{ runner.os }}-${{ runner.image }}-${{ runner.arch }}-${{ env.VERSION }}.tar.gz" >> $GITHUB_ENV
           else
             echo "SKIP_BUILD=false" >> $GITHUB_ENV
           fi
@@ -105,22 +106,22 @@ jobs:
         run: |
           cd yosys/staging/usr/local
           # Package files removing prefix paths; bin/yosys will be at the root after extraction
-          tar -czvf ../../../yosys-linux-x64-${{ env.VERSION }}.tar.gz *
+          tar -czvf ../../../${{ YOSYS_PACKAGE_NAME }}.tar.gz *
           cd ../../..
           # Generate SHA256 checksum
-          sha256sum yosys-linux-x64-${{ env.VERSION }}.tar.gz > yosys-linux-x64-${{ env.VERSION }}.tar.gz.sha256
+          sha256sum ${{ YOSYS_PACKAGE_NAME }}.tar.gz > ${{ YOSYS_PACKAGE_NAME }}.tar.gz.sha256
           echo "== PRINT CURRENT DIR =="
           ls .
 
-      # - name: Upload to Actions Artifacts(Temporary storage)
-      #   if: env.SKIP_BUILD == 'false'
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: yosys-linux-x64-${{ env.VERSION }}
-      #     path: |
-      #       yosys-linux-x64-${{ env.VERSION }}.tar.gz
-      #       yosys-linux-x64-${{ env.VERSION }}.tar.gz.sha256
-      #     retention-days: 90 # Retain for 90 days
+      - name: Upload to Actions Artifacts(Temporary storage)
+        if: env.SKIP_BUILD == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ YOSYS_PACKAGE_NAME }}
+          path: |
+            ${{ YOSYS_PACKAGE_NAME }}.tar.gz
+            ${{ YOSYS_PACKAGE_NAME }}.tar.gz.sha256
+          retention-days: 90 # Retain for 90 days
 
       # - name: Publish to GitHub Releases (Permanent release)
       #   if: env.SKIP_BUILD == 'false'
@@ -134,11 +135,11 @@ jobs:
       #       **Build Commit Source:** https://github.com/YosysHQ/yosys/tree/${{ env.VERSION }}
             
       #       ### 🚀 Ready to use (How to use)
-      #       1. Download `yosys-linux-x64-${{ env.VERSION }}.tar.gz`
-      #       2. Extract: `tar -xzvf yosys-linux-x64-${{ env.VERSION }}.tar.gz`
+      #       1. Download `${{ YOSYS_PACKAGE_NAME }}.tar.gz`
+      #       2. Extract: `tar -xzvf ${{ YOSYS_PACKAGE_NAME }}.tar.gz`
       #       3. Run: `./bin/yosys`
             
       #       *This archive has been pre-configured with relative paths for 'share'. No need to run `make install` or configure environment variables—simply extract and run.*
       #     files: |
-      #       yosys-linux-x64-${{ env.VERSION }}.tar.gz
-      #       yosys-linux-x64-${{ env.VERSION }}.tar.gz.sha256
+      #       ${{ YOSYS_PACKAGE_NAME }}.tar.gz
+      #       ${{ YOSYS_PACKAGE_NAME }}.tar.gz.sha256
