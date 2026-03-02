@@ -110,15 +110,15 @@ jobs:
           # Generate SHA256 checksum
           sha256sum ${{ env.PACKAGE_NAME }}.tar.gz > ${{ env.PACKAGE_NAME }}.tar.gz.sha256
 
-      # - name: Upload to Actions Artifacts(Temporary storage)
-      #   if: env.SKIP_BUILD == 'false'
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: ${{ env.PACKAGE_NAME }}
-      #     path: |
-      #       verilator/${{ env.PACKAGE_NAME }}.tar.gz
-      #       verilator/${{ env.PACKAGE_NAME }}.tar.gz.sha256
-      #     retention-days: 90 # Retain for 90 days
+      - name: Upload to Actions Artifacts(Temporary storage)
+        if: env.SKIP_BUILD == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PACKAGE_NAME }}
+          path: |
+            verilator/${{ env.PACKAGE_NAME }}.tar.gz
+            verilator/${{ env.PACKAGE_NAME }}.tar.gz.sha256
+          retention-days: 90 # Retain for 90 days
 
       # - name: Publish to GitHub Releases (Permanent release)
       #   if: env.SKIP_BUILD == 'false'
