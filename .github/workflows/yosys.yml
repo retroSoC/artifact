@@ -59,9 +59,9 @@ jobs:
           git checkout ${{ env.REPO_VERSION }}
           git submodule update --init --recursive
           # Use official Tag or Commit Hash as the version number
-          VERSION=$(git describe --tags --always)
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "Current Yosys version to build: $VERSION"
+          REPO_TAG_VERSION=$(git describe --tags --always)
+          echo "REPO_TAG_VERSION=$REPO_TAG_VERSION" >> $GITHUB_ENV
+          echo "Current Yosys version to build: $REPO_TAG_VERSION"
 
       - name: Check for Existing Release (Avoid duplicate builds)
         id: check_release
@@ -69,12 +69,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Check if a Release for this version already exists in the current repository
-          if gh release view "${{ env.VERSION }}" --repo ${{ github.repository }} > /dev/null 2>&1; then
-            echo "Release ${{ env.VERSION }} already exists! Skipping build."
+          if gh release view "yosys-${{ env.REPO_TAG_VERSION }}" --repo ${{ github.repository }} > /dev/null 2>&1; then
+            echo "Release ${{ env.REPO_TAG_VERSION }} already exists! Skipping build."
             echo "SKIP_BUILD=true" >> $GITHUB_ENV
           else
             echo "SKIP_BUILD=false" >> $GITHUB_ENV
-            echo "PACKAGE_NAME=yosys-${{ env.VERSION }}-${{ env.RUNNER_VERSION }}-${{ env.TOOLCHAIN_VERSION }}" >> $GITHUB_ENV
+            echo "PACKAGE_NAME=yosys-${{ env.REPO_TAG_VERSION }}-${{ env.RUNNER_VERSION }}-${{ env.TOOLCHAIN_VERSION }}" >> $GITHUB_ENV
           fi
 
       - name: Install Build Dependencies (Full compilation environment)
@@ -82,8 +82,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gawk git make python3 lld bison clang flex \
-            libffi-dev libfl-dev libreadline-dev pkg-config tcl-dev zlib1g-dev \
-            graphviz xdot build-essential cmake
+                                       libffi-dev libfl-dev libreadline-dev pkg-config tcl-dev zlib1g-dev \
+                                       graphviz xdot build-essential cmake
           echo "Download install shell script and run it"
           curl -LsSf https://astral.sh/uv/install.sh | sh
 
@@ -99,8 +99,6 @@ jobs:
           yosys-config --help
           make DESTDIR=$PWD/staging install
           echo "== PRINT INSTALL DIR =="
-          ls staging/usr/local/bin
-          ls staging/usr/local/share/yosys
           mkdir -p staging/usr/local/share/yosys/plugins
           cd ..
 
@@ -113,10 +111,7 @@ jobs:
           cmake ..
           make -j$(nproc)
           echo "== PRINT INSTALL DIR =="
-          ls ../../yosys
           cp -rf slang.so ../../yosys/staging/usr/local/share/yosys/plugins
-          ls ../../yosys/staging/usr/local/share/yosys
-          ls ../../yosys/staging/usr/local/share/yosys/plugins
           cd ../..
 
       - name: Package Artifacts and Generate SHA256 (Ready-to-use + Integrity verification)
@@ -130,10 +125,8 @@ jobs:
           # Generate SHA256 checksum
           sha256sum ${{ env.PACKAGE_NAME }}.tar.gz > ${{ env.PACKAGE_NAME }}.tar.gz.sha256
           echo "== PRINT CURRENT DIR =="
-          ls .
           cd ..
           echo "== PRINT CURRENT DIR =="
-          ls .
 
       - name: Upload to Actions Artifacts(Temporary storage)
         if: env.SKIP_BUILD == 'false'
@@ -149,12 +142,12 @@ jobs:
         if: env.SKIP_BUILD == 'false'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: yosys-${{ env.VERSION }}
-          name: "Yosys ${{ env.VERSION }}"
+          tag_name: yosys-${{ env.REPO_TAG_VERSION }}
+          name: "Yosys ${{ env.REPO_TAG_VERSION }}"
           body: |
-            Automated build of Yosys ${{ env.VERSION }}.
+            Automated build of Yosys ${{ env.REPO_TAG_VERSION }}.
 
-            **Build Commit Source:** https://github.com/YosysHQ/yosys/tree/${{ env.VERSION }}
+            **Build Commit Source:** https://github.com/YosysHQ/yosys/tree/${{ env.REPO_TAG_VERSION }}
             
             ### 🚀 Ready to use (How to use)
             1. Download `${{ env.PACKAGE_NAME }}.tar.gz`
