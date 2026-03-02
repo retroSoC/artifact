@@ -54,7 +54,7 @@ jobs:
 
       - name: Clone Official Verilator Repository
         run: |
-          git clone https://github.com/YosysHQ/verilator.git
+          git clone https://github.com/verilator/verilator
           cd verilator
           git checkout ${{ env.REPO_VERSION }}
           # Use official Tag or Commit Hash as the version number
