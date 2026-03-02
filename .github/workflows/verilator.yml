@@ -97,21 +97,18 @@ jobs:
           make -j$(nproc)
           make DESTDIR=$PWD/staging install
           echo "== PRINT INSTALL DIR =="
-          tree -L 3 staging
+          tree -L 4 staging
 
-      # - name: Package Artifacts and Generate SHA256 (Ready-to-use + Integrity verification)
-      #   if: env.SKIP_BUILD == 'false'
-      #   run: |
-      #     echo "PACKAGE NAME: ${{ env.PACKAGE_NAME }}"
-      #     cd verilator/staging/usr/local
-      #     # Package files removing prefix paths; bin/verilator will be at the root after extraction
-      #     tar -czvf ../../../${{ env.PACKAGE_NAME }}.tar.gz *
-      #     cd ../../..
-      #     # Generate SHA256 checksum
-      #     sha256sum ${{ env.PACKAGE_NAME }}.tar.gz > ${{ env.PACKAGE_NAME }}.tar.gz.sha256
-      #     echo "== PRINT CURRENT DIR =="
-      #     cd ..
-      #     echo "== PRINT CURRENT DIR =="
+      - name: Package Artifacts and Generate SHA256 (Ready-to-use + Integrity verification)
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          echo "PACKAGE NAME: ${{ env.PACKAGE_NAME }}"
+          cd verilator/staging/usr/local
+          # Package files removing prefix paths; bin/verilator will be at the root after extraction
+          tar -czvf ../../../${{ env.PACKAGE_NAME }}.tar.gz *
+          cd ../../..
+          # Generate SHA256 checksum
+          sha256sum ${{ env.PACKAGE_NAME }}.tar.gz > ${{ env.PACKAGE_NAME }}.tar.gz.sha256
 
       # - name: Upload to Actions Artifacts(Temporary storage)
       #   if: env.SKIP_BUILD == 'false'
