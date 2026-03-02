@@ -85,17 +85,19 @@ jobs:
           sudo apt-get install libfl2
           sudo apt-get install libfl-dev
           sudo apt-get install zlib1g zlib1g-dev
+          sudo apt-get install tree
 
       - name: Compile Verilator
         if: env.SKIP_BUILD == 'false'
         run: |
           unset VERILATOR_ROOT
+          cd verilator
           autoconf
           ./configure
           make -j$(nproc)
           make DESTDIR=$PWD/staging install
           echo "== PRINT INSTALL DIR =="
-          ls staging
+          tree -L 3 staging
 
       # - name: Package Artifacts and Generate SHA256 (Ready-to-use + Integrity verification)
       #   if: env.SKIP_BUILD == 'false'
