@@ -129,7 +129,7 @@ jobs:
           body: |
             Automated build of Verilator ${{ env.REPO_TAG_VERSION }}.
 
-            **Build Commit Source:** https://github.com/YosysHQ/verilator/tree/${{ env.REPO_TAG_VERSION }}
+            **Build Commit Source:** https://github.com/verilator/verilator/tree/${{ env.REPO_TAG_VERSION }}
             
             ### 🚀 Ready to use (How to use)
             1. Download `${{ env.PACKAGE_NAME }}.tar.gz`
