@@ -102,7 +102,6 @@ jobs:
           mkdir -p staging/usr/local/share/yosys/plugins
           cd ..
 
-
       - name: Compile Yosys-Slang Plugin
         if: env.SKIP_BUILD == 'false'
         run: |
