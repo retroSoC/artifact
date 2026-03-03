@@ -115,23 +115,23 @@ jobs:
             iverilog/${{ env.PACKAGE_NAME }}.tar.gz.sha256
           retention-days: 90 # Retain for 90 days
 
-      # - name: Publish to GitHub Releases (Permanent release)
-      #   if: env.SKIP_BUILD == 'false'
-      #   uses: softprops/action-gh-release@v2
-      #   with:
-      #     tag_name: iverilog-${{ env.REPO_TAG_VERSION }}
-      #     name: "IVerilog ${{ env.REPO_TAG_VERSION }}"
-      #     body: |
-      #       Automated build of IVerilog ${{ env.REPO_TAG_VERSION }}.
+      - name: Publish to GitHub Releases (Permanent release)
+        if: env.SKIP_BUILD == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: iverilog-${{ env.REPO_TAG_VERSION }}
+          name: "IVerilog ${{ env.REPO_TAG_VERSION }}"
+          body: |
+            Automated build of IVerilog ${{ env.REPO_TAG_VERSION }}.
 
-      #       **Build Commit Source:** https://github.com/iverilog/iverilog/tree/${{ env.REPO_TAG_VERSION }}
+            **Build Commit Source:** https://github.com/steveicarus/iverilog/tree/${{ env.REPO_TAG_VERSION }}
             
-      #       ### 🚀 Ready to use (How to use)
-      #       1. Download `${{ env.PACKAGE_NAME }}.tar.gz`
-      #       2. Extract: `tar -xzvf ${{ env.PACKAGE_NAME }}.tar.gz`
-      #       3. Run: `./bin/iverilog`
+            ### 🚀 Ready to use (How to use)
+            1. Download `${{ env.PACKAGE_NAME }}.tar.gz`
+            2. Extract: `tar -xzvf ${{ env.PACKAGE_NAME }}.tar.gz`
+            3. Run: `./bin/iverilog`
             
-      #       *This archive has been pre-configured with relative paths for 'share'. No need to run `make install` or configure environment variables—simply extract and run.*
-      #     files: |
-      #       iverilog/${{ env.PACKAGE_NAME }}.tar.gz
-      #       iverilog/${{ env.PACKAGE_NAME }}.tar.gz.sha256
+            *This archive has been pre-configured with relative paths for 'share'. No need to run `make install` or configure environment variables—simply extract and run.*
+          files: |
+            iverilog/${{ env.PACKAGE_NAME }}.tar.gz
+            iverilog/${{ env.PACKAGE_NAME }}.tar.gz.sha256
