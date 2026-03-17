@@ -109,22 +109,22 @@ jobs:
         if: env.SKIP_BUILD == 'false'
         run: |
           echo "PACKAGE NAME: ${{ env.PACKAGE_NAME }}"
-          cd opensta/staging/usr/local
+          cd OpenSTA/staging/usr/local
           # Package files removing prefix paths; bin/opensta will be at the root after extraction
           tar -czvf ../../../${{ env.PACKAGE_NAME }}.tar.gz *
           cd ../../..
           # Generate SHA256 checksum
           sha256sum ${{ env.PACKAGE_NAME }}.tar.gz > ${{ env.PACKAGE_NAME }}.tar.gz.sha256
 
-      # - name: Upload to Actions Artifacts(Temporary storage)
-      #   if: env.SKIP_BUILD == 'false'
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: ${{ env.PACKAGE_NAME }}
-      #     path: |
-      #       opensta/${{ env.PACKAGE_NAME }}.tar.gz
-      #       opensta/${{ env.PACKAGE_NAME }}.tar.gz.sha256
-      #     retention-days: 90 # Retain for 90 days
+      - name: Upload to Actions Artifacts(Temporary storage)
+        if: env.SKIP_BUILD == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PACKAGE_NAME }}
+          path: |
+            OpenSTA/${{ env.PACKAGE_NAME }}.tar.gz
+            OpenSTA/${{ env.PACKAGE_NAME }}.tar.gz.sha256
+          retention-days: 90 # Retain for 90 days
 
       # - name: Publish to GitHub Releases (Permanent release)
       #   if: env.SKIP_BUILD == 'false'
