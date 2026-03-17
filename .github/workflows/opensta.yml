@@ -91,9 +91,7 @@ jobs:
           cd cudd-3.0.0
           ./configure
           make -j$(nproc)
-          make DESTDIR=$PWD/staging install
-          echo "== PRINT INSTALL DIR =="
-          tree -L 4 .
+          sudo make install
 
       - name: Compile OpenSTA
         if: env.SKIP_BUILD == 'false'
@@ -101,9 +99,7 @@ jobs:
           cd OpenSTA
           mkdir build
           cd build
-          echo "== PRINT CUDD DIR =="
-          ls -alh ../../cudd/cudd_versions/cudd-3.0.0/staging/usr/local
-          cmake -DCUDD_DIR=../../cudd/cudd_versions/cudd-3.0.0/staging/usr/local ..
+          cmake ..
           make -j$(nproc)
           make DESTDIR=$PWD/staging install
           echo "== PRINT INSTALL DIR =="
