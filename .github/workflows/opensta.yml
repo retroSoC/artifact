@@ -80,6 +80,7 @@ jobs:
         if: env.SKIP_BUILD == 'false'
         run: |
           sudo apt-get update
+          sudo apt-get install swig tcl-dev
           sudo apt-get install autoconf gperf make gcc g++ bison flex
           sudo apt-get install libeigen3-dev
           sudo apt-get install zlib1g zlib1g-dev
@@ -101,8 +102,8 @@ jobs:
           mkdir build
           cd build
           echo "== PRINT CUDD DIR =="
-          ls -alh ../../cudd/cudd_versions/cudd-3.0.0/staging
-          cmake -DCUDD_DIR=../../cudd/cudd_versions/cudd-3.0.0/staging/usr/local/lib/libcudd.a ..
+          ls -alh ../../cudd/cudd_versions/cudd-3.0.0/staging/usr/local
+          cmake -DCUDD_DIR=../../cudd/cudd_versions/cudd-3.0.0/staging/usr/local ..
           make -j$(nproc)
           make DESTDIR=$PWD/staging install
           echo "== PRINT INSTALL DIR =="
