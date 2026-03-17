@@ -100,7 +100,9 @@ jobs:
           cd OpenSTA
           mkdir build
           cd build
-          cmake ..
+          echo "== PRINT CUDD DIR =="
+          ls -alh ../../cudd/cudd_versions/cudd-3.0.0/staging
+          cmake -DCUDD_DIR=../../cudd/cudd_versions/cudd-3.0.0/staging/usr/local/lib ..
           make -j$(nproc)
           make DESTDIR=$PWD/staging install
           echo "== PRINT INSTALL DIR =="
