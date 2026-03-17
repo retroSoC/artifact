@@ -126,23 +126,23 @@ jobs:
             OpenSTA/build/${{ env.PACKAGE_NAME }}.tar.gz.sha256
           retention-days: 90 # Retain for 90 days
 
-      # - name: Publish to GitHub Releases (Permanent release)
-      #   if: env.SKIP_BUILD == 'false'
-      #   uses: softprops/action-gh-release@v2
-      #   with:
-      #     tag_name: opensta-${{ env.REPO_TAG_VERSION }}
-      #     name: "OpenSTA ${{ env.REPO_TAG_VERSION }}"
-      #     body: |
-      #       Automated build of OpenSTA ${{ env.REPO_TAG_VERSION }}.
+      - name: Publish to GitHub Releases (Permanent release)
+        if: env.SKIP_BUILD == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: opensta-${{ env.REPO_TAG_VERSION }}
+          name: "OpenSTA ${{ env.REPO_TAG_VERSION }}"
+          body: |
+            Automated build of OpenSTA ${{ env.REPO_TAG_VERSION }}.
 
-      #       **Build Commit Source:** https://github.com/steveicarus/opensta/tree/${{ env.REPO_TAG_VERSION }}
+            **Build Commit Source:** https://github.com/The-OpenROAD-Project/OpenSTA/tree/${{ env.REPO_TAG_VERSION }}
             
-      #       ### 🚀 Ready to use (How to use)
-      #       1. Download `${{ env.PACKAGE_NAME }}.tar.gz`
-      #       2. Extract: `tar -xzvf ${{ env.PACKAGE_NAME }}.tar.gz`
-      #       3. Run: `./bin/opensta`
+            ### 🚀 Ready to use (How to use)
+            1. Download `${{ env.PACKAGE_NAME }}.tar.gz`
+            2. Extract: `tar -xzvf ${{ env.PACKAGE_NAME }}.tar.gz`
+            3. Run: `./bin/sta`
             
-      #       *This archive has been pre-configured with relative paths for 'share'. No need to run `make install` or configure environment variables—simply extract and run.*
-      #     files: |
-      #       opensta/${{ env.PACKAGE_NAME }}.tar.gz
-      #       opensta/${{ env.PACKAGE_NAME }}.tar.gz.sha256
+            *This archive has been pre-configured with relative paths for 'share'. No need to run `make install` or configure environment variables—simply extract and run.*
+          files: |
+            OpenSTA/build/${{ env.PACKAGE_NAME }}.tar.gz
+            OpenSTA/build/${{ env.PACKAGE_NAME }}.tar.gz.sha256
