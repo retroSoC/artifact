@@ -81,6 +81,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install autoconf gperf make gcc g++ bison flex
+          sudo apt-get install libeigen3-dev
           sudo apt-get install zlib1g zlib1g-dev
           sudo apt-get install tree
           git clone https://github.com/davidkebo/cudd.git
@@ -89,6 +90,7 @@ jobs:
           cd cudd-3.0.0
           ./configure
           make -j$(nproc)
+          make DESTDIR=$PWD/staging install
           echo "== PRINT INSTALL DIR =="
           tree -L 4 .
 
