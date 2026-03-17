@@ -81,7 +81,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install swig tcl-dev
-          sudo apt-get install autoconf gperf make gcc g++ bison flex
+          sudo apt-get install autoconf gperf make gcc g++ bison flex libfl-dev
           sudo apt-get install libeigen3-dev
           sudo apt-get install zlib1g zlib1g-dev
           sudo apt-get install tree
