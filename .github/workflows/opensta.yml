@@ -102,7 +102,7 @@ jobs:
           cd build
           echo "== PRINT CUDD DIR =="
           ls -alh ../../cudd/cudd_versions/cudd-3.0.0/staging
-          cmake -DCUDD_DIR=../../cudd/cudd_versions/cudd-3.0.0/staging/usr/local/lib ..
+          cmake -DCUDD_DIR=../../cudd/cudd_versions/cudd-3.0.0/staging/usr/local/lib/libcudd.a ..
           make -j$(nproc)
           make DESTDIR=$PWD/staging install
           echo "== PRINT INSTALL DIR =="
