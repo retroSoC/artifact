@@ -109,7 +109,7 @@ jobs:
         if: env.SKIP_BUILD == 'false'
         run: |
           echo "PACKAGE NAME: ${{ env.PACKAGE_NAME }}"
-          cd OpenSTA/staging/usr/local
+          cd OpenSTA/build/staging/usr/local
           # Package files removing prefix paths; bin/opensta will be at the root after extraction
           tar -czvf ../../../${{ env.PACKAGE_NAME }}.tar.gz *
           cd ../../..
@@ -122,8 +122,8 @@ jobs:
         with:
           name: ${{ env.PACKAGE_NAME }}
           path: |
-            OpenSTA/${{ env.PACKAGE_NAME }}.tar.gz
-            OpenSTA/${{ env.PACKAGE_NAME }}.tar.gz.sha256
+            OpenSTA/build/${{ env.PACKAGE_NAME }}.tar.gz
+            OpenSTA/build/${{ env.PACKAGE_NAME }}.tar.gz.sha256
           retention-days: 90 # Retain for 90 days
 
       # - name: Publish to GitHub Releases (Permanent release)
