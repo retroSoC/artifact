@@ -1,4 +1,4 @@
-name: Build and Release sv2v
+name: Build and Release Sv2v
 
 on:
   # 1. Manual trigger (Can specify branch/tag/commit)
