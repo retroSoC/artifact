@@ -111,23 +111,23 @@ jobs:
             sv2v/${{ env.PACKAGE_NAME }}.tar.gz.sha256
           retention-days: 90 # Retain for 90 days
 
-      # - name: Publish to GitHub Releases (Permanent release)
-      #   if: env.SKIP_BUILD == 'false'
-      #   uses: softprops/action-gh-release@v2
-      #   with:
-      #     tag_name: sv2v-${{ env.REPO_TAG_VERSION }}
-      #     name: "sv2v ${{ env.REPO_TAG_VERSION }}"
-      #     body: |
-      #       Automated build of sv2v ${{ env.REPO_TAG_VERSION }}.
+      - name: Publish to GitHub Releases (Permanent release)
+        if: env.SKIP_BUILD == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: sv2v-${{ env.REPO_TAG_VERSION }}
+          name: "sv2v ${{ env.REPO_TAG_VERSION }}"
+          body: |
+            Automated build of sv2v ${{ env.REPO_TAG_VERSION }}.
 
-      #       **Build Commit Source:** git clone https://github.com/zachjs/sv2v/tree/${{ env.REPO_TAG_VERSION }}
+            **Build Commit Source:** git clone https://github.com/zachjs/sv2v/tree/${{ env.REPO_TAG_VERSION }}
             
-      #       ### 🚀 Ready to use (How to use)
-      #       1. Download `${{ env.PACKAGE_NAME }}.tar.gz`
-      #       2. Extract: `tar -xzvf ${{ env.PACKAGE_NAME }}.tar.gz`
-      #       3. Run: `./bin/sv2v`
+            ### 🚀 Ready to use (How to use)
+            1. Download `${{ env.PACKAGE_NAME }}.tar.gz`
+            2. Extract: `tar -xzvf ${{ env.PACKAGE_NAME }}.tar.gz`
+            3. Run: `./bin/sv2v`
             
-      #       *This archive has been pre-configured with relative paths for 'share'. No need to run `make install` or configure environment variables—simply extract and run.*
-      #     files: |
-      #       sv2v/${{ env.PACKAGE_NAME }}.tar.gz
-      #       sv2v/${{ env.PACKAGE_NAME }}.tar.gz.sha256
+            *This archive has been pre-configured with relative paths for 'share'. No need to run `make install` or configure environment variables—simply extract and run.*
+          files: |
+            sv2v/${{ env.PACKAGE_NAME }}.tar.gz
+            sv2v/${{ env.PACKAGE_NAME }}.tar.gz.sha256
