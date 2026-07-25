@@ -1,0 +1,159 @@
+name: Build and Release Bitwuzla
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout User Repository
+        uses: actions/checkout@v4
+
+      - name: Set Build Metadata
+        run: |
+          BITWUZLA_VERSION="0.9.1"
+          RUNNER_VERSION="ubuntu-22.04"
+          TOOLCHAIN_VERSION="gcc"
+          echo "BITWUZLA_VERSION=$BITWUZLA_VERSION" >> "$GITHUB_ENV"
+          echo "REPO_TAG_VERSION=$BITWUZLA_VERSION" >> "$GITHUB_ENV"
+          echo "RUNNER_VERSION=$RUNNER_VERSION" >> "$GITHUB_ENV"
+          echo "TOOLCHAIN_VERSION=$TOOLCHAIN_VERSION" >> "$GITHUB_ENV"
+          PACKAGE_NAME="bitwuzla-${BITWUZLA_VERSION}-${RUNNER_VERSION}"
+          PACKAGE_NAME="${PACKAGE_NAME}-${TOOLCHAIN_VERSION}"
+          echo "PACKAGE_NAME=$PACKAGE_NAME" >> "$GITHUB_ENV"
+
+      - name: Clone Official Bitwuzla Repository
+        run: |
+          git clone --depth 1 --branch "$BITWUZLA_VERSION" \
+            https://github.com/bitwuzla/bitwuzla.git
+          cd bitwuzla
+          git describe --tags --exact-match HEAD
+
+      - name: Check for Existing Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "bitwuzla-${REPO_TAG_VERSION}" \
+              --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "Release bitwuzla-${REPO_TAG_VERSION} already exists."
+            echo "SKIP_BUILD=true" >> "$GITHUB_ENV"
+          else
+            echo "SKIP_BUILD=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install Build and Test Dependencies
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential ca-certificates curl git libgtest-dev m4 \
+            ninja-build pkg-config python3 python3-pip xz-utils
+          python3 -m pip install --user "meson==1.3.2"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Build GMP and MPFR Dependencies
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          DEPS_PREFIX="$GITHUB_WORKSPACE/bitwuzla-deps"
+          mkdir -p third-party-src "$DEPS_PREFIX"
+          cd third-party-src
+          curl --fail --location --retry 3 --output gmp-6.3.0.tar.xz \
+            https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz
+          tar -xf gmp-6.3.0.tar.xz
+          pushd gmp-6.3.0
+          ./configure --prefix="$DEPS_PREFIX" --enable-cxx \
+            --disable-shared --enable-static
+          make -j"$(nproc)"
+          make install
+          popd
+          curl --fail --location --retry 3 --output mpfr-4.2.1.tar.xz \
+            https://www.mpfr.org/mpfr-4.2.1/mpfr-4.2.1.tar.xz
+          tar -xf mpfr-4.2.1.tar.xz
+          pushd mpfr-4.2.1
+          CPPFLAGS="-I$DEPS_PREFIX/include" LDFLAGS="-L$DEPS_PREFIX/lib" \
+            ./configure --prefix="$DEPS_PREFIX" --with-gmp="$DEPS_PREFIX" \
+              --disable-shared --enable-static
+          make -j"$(nproc)"
+          make install
+          popd
+          printf 'DEPS_PREFIX=%s\n' "$DEPS_PREFIX" >> "$GITHUB_ENV"
+          PKG_CONFIG_PATH="$DEPS_PREFIX/lib/pkgconfig"
+          printf 'PKG_CONFIG_PATH=%s\n' "$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
+
+      - name: Configure, Build, and Test Bitwuzla
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          meson --version
+          pkg-config --modversion gmp
+          pkg-config --modversion mpfr
+          cd bitwuzla
+          ./configure.py release --static --testing --unit-testing \
+            --prefix="$PWD/staging/usr/local"
+          meson compile -C build
+          meson test -C build --print-errorlogs
+          meson install -C build
+          test -x staging/usr/local/bin/bitwuzla
+
+      - name: Package Artifacts and Generate SHA256
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          cd bitwuzla/staging/usr/local
+          tar -czvf "../../../${PACKAGE_NAME}.tar.gz" *
+          cd ../../..
+          sha256sum "${PACKAGE_NAME}.tar.gz" > "${PACKAGE_NAME}.tar.gz.sha256"
+          sha256sum --check "${PACKAGE_NAME}.tar.gz.sha256"
+
+      - name: Smoke Test Packaged Bitwuzla
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          mkdir -p bitwuzla-smoke
+          tar -xzvf "bitwuzla/${PACKAGE_NAME}.tar.gz" -C bitwuzla-smoke
+          BITWUZLA_BIN="$GITHUB_WORKSPACE/bitwuzla-smoke/bin/bitwuzla"
+          test -x "$BITWUZLA_BIN"
+          "$BITWUZLA_BIN" --version
+          cat > bitwuzla-smoke/smoke.smt2 <<'EOF'
+          (set-logic QF_BV)
+          (declare-const x (_ BitVec 8))
+          (assert (= x #x01))
+          (check-sat)
+          EOF
+          "$BITWUZLA_BIN" bitwuzla-smoke/smoke.smt2 > bitwuzla-smoke/result.txt
+          grep -Fx "sat" bitwuzla-smoke/result.txt
+
+      - name: Upload to Actions Artifacts
+        if: env.SKIP_BUILD == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PACKAGE_NAME }}
+          path: |
+            bitwuzla/${{ env.PACKAGE_NAME }}.tar.gz
+            bitwuzla/${{ env.PACKAGE_NAME }}.tar.gz.sha256
+          retention-days: 90
+
+      - name: Publish to GitHub Releases
+        if: env.SKIP_BUILD == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: bitwuzla-${{ env.REPO_TAG_VERSION }}
+          name: "Bitwuzla ${{ env.REPO_TAG_VERSION }}"
+          body: |
+            Automated static build of Bitwuzla ${{ env.REPO_TAG_VERSION }}.
+
+            **Build Commit Source:**
+            https://github.com/bitwuzla/bitwuzla
+
+            ### Usage
+            1. Download `${{ env.PACKAGE_NAME }}.tar.gz`.
+            2. Extract: `tar -xzvf ${{ env.PACKAGE_NAME }}.tar.gz`.
+            3. Run: `./bin/bitwuzla --version`.
+
+            This archive contains the Bitwuzla CLI, static libraries, headers,
+            and pkg-config metadata. Applications linking the static libraries
+            must provide compatible GMP and MPFR libraries.
+          files: |
+            bitwuzla/${{ env.PACKAGE_NAME }}.tar.gz
+            bitwuzla/${{ env.PACKAGE_NAME }}.tar.gz.sha256
