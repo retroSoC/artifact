@@ -8,11 +8,6 @@ on:
         required: true
         default: 'ubuntu-22.04'
 
-      repo_version:
-        description: 'repo branch, tag, or commit hash to build'
-        required: true
-        default: 'main'
-
 permissions:
   contents: write
 
@@ -26,19 +21,18 @@ jobs:
       - name: Determine Target Version
         run: |
           RUNNER_VERSION="ubuntu-22.04"
-          REPO_VERSION="main"
+          REPO_VERSION="v0.67"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             RUNNER_VERSION="${{ github.event.inputs.runner_version }}"
-            REPO_VERSION="${{ github.event.inputs.repo_version }}"
           fi
           echo "RUNNER_VERSION=$RUNNER_VERSION" >> "$GITHUB_ENV"
           echo "REPO_VERSION=$REPO_VERSION" >> "$GITHUB_ENV"
 
       - name: Clone Official SymbiYosys Repository
         run: |
-          git clone https://github.com/YosysHQ/sby.git
+          git clone --depth 1 --branch "$REPO_VERSION" \
+            https://github.com/YosysHQ/sby.git
           cd sby
-          git checkout "$REPO_VERSION"
           REPO_TAG_VERSION=$(git describe --tags --always)
           echo "REPO_TAG_VERSION=$REPO_TAG_VERSION" >> "$GITHUB_ENV"
           echo "Current SymbiYosys version to build: $REPO_TAG_VERSION"
@@ -62,7 +56,23 @@ jobs:
         if: env.SKIP_BUILD == 'false'
         run: |
           sudo apt-get update
-          sudo apt-get install -y make python3 python3-click yosys z3
+          sudo apt-get install -y \
+            gawk git make python3 python3-click z3 lld bison clang flex \
+            libffi-dev libfl-dev libreadline-dev pkg-config tcl-dev zlib1g-dev \
+            build-essential cmake
+
+      - name: Build Compatible Yosys
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          git clone --depth 1 --branch v0.58 \
+            https://github.com/YosysHQ/yosys.git
+          cd yosys
+          git submodule update --init --recursive
+          make config-gcc
+          make -j"$(nproc)"
+          sudo make install
+          yosys --version
+          yosys -p 'help hierarchy' | grep -F -- '-smtcheck'
 
       - name: Install SymbiYosys to Staging Directory
         if: env.SKIP_BUILD == 'false'
