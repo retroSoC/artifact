@@ -86,11 +86,34 @@ jobs:
           tar -xzvf "sby/${PACKAGE_NAME}.tar.gz" -C sby-smoke
           test -x sby-smoke/bin/sby
           "$GITHUB_WORKSPACE/sby-smoke/bin/sby" --version
+          cat > sby-smoke/smoke.sby <<'EOF'
+          [options]
+          mode bmc
+          depth 1
+
+          [engines]
+          smtbmc z3
+
+          [script]
+          read -formal smoke.v
+          prep -top smoke
+
+          [files]
+          smoke.v
+          EOF
+          cat > sby-smoke/smoke.v <<'EOF'
+          module smoke(input wire clk);
+            always @(posedge clk) begin
+              assert (1'b1);
+            end
+          endmodule
+          EOF
           (
-            cd sby/sbysrc
+            cd sby-smoke
             SBY_BIN="$GITHUB_WORKSPACE/sby-smoke/bin/sby"
-            PATH="$GITHUB_WORKSPACE/sby-smoke/bin:$PATH" "$SBY_BIN" -f demo1.sby
+            PATH="$GITHUB_WORKSPACE/sby-smoke/bin:$PATH" "$SBY_BIN" -f smoke.sby
           )
+          test -f sby-smoke/smoke/PASS
 
       - name: Upload to Actions Artifacts
         if: env.SKIP_BUILD == 'false'
