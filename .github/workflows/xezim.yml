@@ -1,0 +1,158 @@
+name: Build and Release Xezim
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner_version:
+        description: "runner version to build"
+        required: true
+        default: "ubuntu-22.04"
+      xezim_ref:
+        description: "Xezim branch, tag, or commit hash to build"
+        required: true
+        default: "master"
+      xezim_core_ref:
+        description: "Xezim Core branch, tag, or commit hash to build"
+        required: true
+        default: "master"
+      rust_version:
+        description: "Rust toolchain version to use"
+        required: true
+        default: "1.75.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ${{ github.event.inputs.runner_version }}
+    steps:
+      - name: Checkout User Repository
+        uses: actions/checkout@v4
+
+      - name: Determine Target Version
+        run: |
+          RUNNER_VERSION="ubuntu-22.04"
+          XEZIM_REF="master"
+          XEZIM_CORE_REF="master"
+          RUST_VERSION="1.75.0"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            RUNNER_VERSION="${{ github.event.inputs.runner_version }}"
+            XEZIM_REF="${{ github.event.inputs.xezim_ref }}"
+            XEZIM_CORE_REF="${{ github.event.inputs.xezim_core_ref }}"
+            RUST_VERSION="${{ github.event.inputs.rust_version }}"
+          fi
+          echo "RUNNER_VERSION=$RUNNER_VERSION" >> "$GITHUB_ENV"
+          echo "XEZIM_REF=$XEZIM_REF" >> "$GITHUB_ENV"
+          echo "XEZIM_CORE_REF=$XEZIM_CORE_REF" >> "$GITHUB_ENV"
+          echo "RUST_VERSION=$RUST_VERSION" >> "$GITHUB_ENV"
+
+      - name: Clone Xezim and Xezim Core
+        run: |
+          git clone https://github.com/aionhw/xezim.git xezim
+          git -C xezim checkout "$XEZIM_REF"
+          git clone https://github.com/aionhw/xezim-core.git xezim-core
+          git -C xezim-core checkout "$XEZIM_CORE_REF"
+          XEZIM_VERSION=$(git -C xezim describe --tags --always)
+          XEZIM_CORE_VERSION=$(git -C xezim-core describe --tags --always)
+          XEZIM_SOURCE_URL="https://github.com/aionhw/xezim/tree/$XEZIM_VERSION"
+          XEZIM_CORE_SOURCE_URL="https://github.com/aionhw/xezim-core/tree/$XEZIM_CORE_VERSION"
+          echo "XEZIM_VERSION=$XEZIM_VERSION" >> "$GITHUB_ENV"
+          echo "XEZIM_CORE_VERSION=$XEZIM_CORE_VERSION" >> "$GITHUB_ENV"
+          echo "XEZIM_SOURCE_URL=$XEZIM_SOURCE_URL" >> "$GITHUB_ENV"
+          echo "XEZIM_CORE_SOURCE_URL=$XEZIM_CORE_SOURCE_URL" >> "$GITHUB_ENV"
+          PACKAGE_NAME="xezim-${XEZIM_VERSION}-${XEZIM_CORE_VERSION}-${RUNNER_VERSION}"
+          PACKAGE_NAME="${PACKAGE_NAME}-rust${RUST_VERSION}"
+          echo "PACKAGE_NAME=$PACKAGE_NAME" >> "$GITHUB_ENV"
+          echo "Xezim version: $XEZIM_VERSION"
+          echo "Xezim Core version: $XEZIM_CORE_VERSION"
+
+      - name: Check for Existing Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_TAG="xezim-${XEZIM_VERSION}-${XEZIM_CORE_VERSION}"
+          if gh release view "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists."
+            echo "Skipping build."
+            echo "SKIP_BUILD=true" >> "$GITHUB_ENV"
+          else
+            echo "SKIP_BUILD=false" >> "$GITHUB_ENV"
+            echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install Rust Toolchain
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          rustup toolchain install "$RUST_VERSION" \
+            --profile minimal --no-self-update
+          rustup default "$RUST_VERSION"
+          rustc --version
+          cargo --version
+
+      - name: Build and Test Xezim
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          cargo test --release --manifest-path xezim/Cargo.toml
+          cargo build --release --manifest-path xezim/Cargo.toml --bin xezim
+          test -x xezim/target/release/xezim
+
+      - name: Smoke Test Packaged Xezim Binary
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          mkdir -p xezim/staging/bin xezim/staging/share/licenses/xezim
+          install -m 0755 xezim/target/release/xezim xezim/staging/bin/xezim
+          install -m 0644 xezim/LICENSE \
+            xezim/staging/share/licenses/xezim/xezim-LICENSE
+          install -m 0644 xezim-core/LICENSE \
+            xezim/staging/share/licenses/xezim/xezim-core-LICENSE
+          xezim/staging/bin/xezim --help > xezim/help.txt
+          (cd xezim && staging/bin/xezim examples/test.sv) \
+            > xezim/smoke.log
+          tree -L 5 xezim/staging
+
+      - name: Package Artifact and Generate SHA256
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          tar -czf "xezim/${PACKAGE_NAME}.tar.gz" -C xezim/staging .
+          sha256sum "xezim/${PACKAGE_NAME}.tar.gz" \
+            > "xezim/${PACKAGE_NAME}.tar.gz.sha256"
+          sha256sum --check "xezim/${PACKAGE_NAME}.tar.gz.sha256"
+
+      - name: Upload to Actions Artifacts
+        if: env.SKIP_BUILD == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PACKAGE_NAME }}
+          path: |
+            xezim/${{ env.PACKAGE_NAME }}.tar.gz
+            xezim/${{ env.PACKAGE_NAME }}.tar.gz.sha256
+          retention-days: 90
+
+      - name: Publish to GitHub Release
+        if: env.SKIP_BUILD == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: >-
+            Xezim ${{ env.XEZIM_VERSION }} / Core ${{ env.XEZIM_CORE_VERSION }}
+          body: |
+            Automated Xezim build from the aionhw/xezim and
+            aionhw/xezim-core repositories.
+
+            **Xezim Source:**
+            ${{ env.XEZIM_SOURCE_URL }}
+
+            **Xezim Core Source:**
+            ${{ env.XEZIM_CORE_SOURCE_URL }}
+
+            **Rust Toolchain:** `${{ env.RUST_VERSION }}`
+
+            ### Usage
+            1. Download `${{ env.PACKAGE_NAME }}.tar.gz`.
+            2. Extract: `tar -xzvf ${{ env.PACKAGE_NAME }}.tar.gz`.
+            3. Run: `./bin/xezim --help`.
+          files: |
+            xezim/${{ env.PACKAGE_NAME }}.tar.gz
+            xezim/${{ env.PACKAGE_NAME }}.tar.gz.sha256

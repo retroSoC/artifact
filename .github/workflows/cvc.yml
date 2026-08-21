@@ -1,0 +1,152 @@
+name: Build and Release CVC
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner_version:
+        description: "runner version to build"
+        required: true
+        default: "ubuntu-22.04"
+      repo_version:
+        description: "CVC branch, tag, or commit hash to build"
+        required: true
+        default: "master"
+      toolchain_version:
+        description: "C compiler toolchain to use"
+        required: true
+        default: "gcc"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ${{ github.event.inputs.runner_version }}
+    steps:
+      - name: Checkout User Repository
+        uses: actions/checkout@v4
+
+      - name: Determine Target Version
+        run: |
+          RUNNER_VERSION="ubuntu-22.04"
+          REPO_VERSION="master"
+          TOOLCHAIN_VERSION="gcc"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            RUNNER_VERSION="${{ github.event.inputs.runner_version }}"
+            REPO_VERSION="${{ github.event.inputs.repo_version }}"
+            TOOLCHAIN_VERSION="${{ github.event.inputs.toolchain_version }}"
+          fi
+          echo "RUNNER_VERSION=$RUNNER_VERSION" >> "$GITHUB_ENV"
+          echo "REPO_VERSION=$REPO_VERSION" >> "$GITHUB_ENV"
+          echo "TOOLCHAIN_VERSION=$TOOLCHAIN_VERSION" >> "$GITHUB_ENV"
+
+      - name: Clone Official CVC Repository
+        run: |
+          git clone https://github.com/cambridgehackers/open-src-cvc.git cvc
+          git -C cvc checkout "$REPO_VERSION"
+          REPO_TAG_VERSION=$(git -C cvc describe --tags --always)
+          CVC_SOURCE_URL="https://github.com/cambridgehackers/open-src-cvc/tree/$REPO_TAG_VERSION"
+          echo "REPO_TAG_VERSION=$REPO_TAG_VERSION" >> "$GITHUB_ENV"
+          echo "CVC_SOURCE_URL=$CVC_SOURCE_URL" >> "$GITHUB_ENV"
+          echo "Current CVC version to build: $REPO_TAG_VERSION"
+
+      - name: Check for Existing Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "cvc-${REPO_TAG_VERSION}" \
+              --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "Release cvc-${REPO_TAG_VERSION} already exists."
+            echo "Skipping build."
+            echo "SKIP_BUILD=true" >> "$GITHUB_ENV"
+          else
+            echo "SKIP_BUILD=false" >> "$GITHUB_ENV"
+            PACKAGE_NAME="cvc-${REPO_TAG_VERSION}-${RUNNER_VERSION}-${TOOLCHAIN_VERSION}"
+            echo "PACKAGE_NAME=$PACKAGE_NAME" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install Build Dependencies
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            build-essential ca-certificates git make tree
+
+      - name: Compile CVC
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          make -C cvc/src cvc64
+          test -x cvc/build64/cvc64
+          mkdir -p cvc/staging/bin cvc/staging/pli_incs
+          install -m 0755 cvc/build64/cvc64 cvc/staging/bin/cvc64
+          ln -s cvc64 cvc/staging/bin/cvc
+          cp -a cvc/pli_incs/. cvc/staging/pli_incs/
+          cp cvc/README.md \
+            cvc/OSS-CVC-MODIFIED-ARTISTIC-LIC.TXT \
+            cvc/OSS-CVC-ARTISTIC-LICENSING-FAQ.pdf \
+            cvc/staging/
+          tree -L 4 cvc/staging
+
+      - name: Smoke Test CVC
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          cat > cvc/smoke.v <<'EOF'
+          module cvc_smoke;
+            reg uninitialized;
+            initial begin
+              #1;
+              if (uninitialized !== 1'bx) begin
+                $display("CVC_SMOKE_FAIL");
+                $finish;
+              end
+              $display("CVC_SMOKE_PASS");
+              $finish;
+            end
+          endmodule
+          EOF
+          cvc/staging/bin/cvc64 -h > cvc/help.txt
+          (cd cvc && staging/bin/cvc64 +interp +exe -q -o smoke-sim smoke.v) \
+            | tee cvc/smoke.log
+          grep -Fx "CVC_SMOKE_PASS" cvc/smoke.log
+
+      - name: Package Artifact and Generate SHA256
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          tar -czf "cvc/${PACKAGE_NAME}.tar.gz" -C cvc/staging .
+          sha256sum "cvc/${PACKAGE_NAME}.tar.gz" \
+            > "cvc/${PACKAGE_NAME}.tar.gz.sha256"
+          sha256sum --check "cvc/${PACKAGE_NAME}.tar.gz.sha256"
+
+      - name: Upload to Actions Artifacts
+        if: env.SKIP_BUILD == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PACKAGE_NAME }}
+          path: |
+            cvc/${{ env.PACKAGE_NAME }}.tar.gz
+            cvc/${{ env.PACKAGE_NAME }}.tar.gz.sha256
+          retention-days: 90
+
+      - name: Publish to GitHub Release
+        if: env.SKIP_BUILD == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: cvc-${{ env.REPO_TAG_VERSION }}
+          name: "CVC ${{ env.REPO_TAG_VERSION }}"
+          body: |
+            Automated CVC build from the
+            cambridgehackers/open-src-cvc repository.
+
+            **Build Commit Source:**
+            ${{ env.CVC_SOURCE_URL }}
+
+            CVC is distributed under Tachyon's OSS CVC dual-licensing modified
+            Artistic license. Read the included license and FAQ before use.
+
+            ### Usage
+            1. Download `${{ env.PACKAGE_NAME }}.tar.gz`.
+            2. Extract: `tar -xzvf ${{ env.PACKAGE_NAME }}.tar.gz`.
+            3. Run: `./bin/cvc64 -h`.
+          files: |
+            cvc/${{ env.PACKAGE_NAME }}.tar.gz
+            cvc/${{ env.PACKAGE_NAME }}.tar.gz.sha256
