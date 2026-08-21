@@ -10,11 +10,11 @@ on:
       xezim_ref:
         description: "Xezim branch, tag, or commit hash to build"
         required: true
-        default: "master"
+        default: "main"
       xezim_core_ref:
         description: "Xezim Core branch, tag, or commit hash to build"
         required: true
-        default: "master"
+        default: "main"
       rust_version:
         description: "Rust toolchain version to use"
         required: true
@@ -33,8 +33,8 @@ jobs:
       - name: Determine Target Version
         run: |
           RUNNER_VERSION="ubuntu-22.04"
-          XEZIM_REF="master"
-          XEZIM_CORE_REF="master"
+          XEZIM_REF="main"
+          XEZIM_CORE_REF="main"
           RUST_VERSION="1.75.0"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             RUNNER_VERSION="${{ github.event.inputs.runner_version }}"
