@@ -108,19 +108,44 @@ jobs:
         run: |
           TT_LIB="generated/${MACRO_NAME}_TT_1p8V_25C.lib"
           SS_LIB="generated/${MACRO_NAME}_SS_1p4V_100C.lib"
+
+          find generated -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+
+          require_file() {
+            if ! test -s "$1"; then
+              echo "Missing or empty generated view: $1" >&2
+              exit 1
+            fi
+          }
+
+          require_text() {
+            pattern=$1
+            path=$2
+            description=$3
+            if ! grep -Eq "$pattern" "$path"; then
+              echo "Missing ${description} in ${path}" >&2
+              exit 1
+            fi
+          }
+
           for suffix in v lef gds sp lvs.sp html py; do
-            test -s "generated/${MACRO_NAME}.${suffix}"
+            require_file "generated/${MACRO_NAME}.${suffix}"
           done
-          test -s "$TT_LIB"
-          test -s "$SS_LIB"
-          grep -Fq "cell (${MACRO_NAME})" "$TT_LIB"
-          grep -Fq "cell (${MACRO_NAME})" "$SS_LIB"
-          grep -Fq "word_width : 32" "$TT_LIB"
-          grep -Fq "address_width : 10" "$TT_LIB"
-          grep -Fq "input [NUM_WMASKS-1:0]   wmask0" \
-            "generated/${MACRO_NAME}.v"
-          grep -Fq "input           spare_wen0" \
-            "generated/${MACRO_NAME}.v"
+          require_file "$TT_LIB"
+          require_file "$SS_LIB"
+          require_text "cell[[:space:]]*\\(${MACRO_NAME}\\)" "$TT_LIB" \
+            "macro cell declaration"
+          require_text "cell[[:space:]]*\\(${MACRO_NAME}\\)" "$SS_LIB" \
+            "macro cell declaration"
+          require_text "word_width[[:space:]]*:[[:space:]]*32" "$TT_LIB" \
+            "32-bit word width"
+          require_text "address_width[[:space:]]*:[[:space:]]*10" "$TT_LIB" \
+            "10-bit address width"
+          require_text \
+            "input[[:space:]]+\\[NUM_WMASKS-1:0\\][[:space:]]+wmask0" \
+            "generated/${MACRO_NAME}.v" "byte-write mask port"
+          require_text "input[[:space:]]+spare_wen0" \
+            "generated/${MACRO_NAME}.v" "spare-column write-enable port"
 
           cat > generated/smoke_tb.sv <<'EOF'
           `timescale 1ns / 1ps
