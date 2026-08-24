@@ -20,7 +20,9 @@ The **Build and Release SKY130 OpenRAM SRAM** workflow generates a single-port
 `1024 x 32` SRAM with byte-write support. The release contains generated
 Verilog, Liberty, LEF, GDS, SPICE, LVS SPICE, configuration, datasheet, source
 manifest, licenses, and checksums. Generated macro views are release artifacts
-and are not committed to this repository.
+and are not committed to this repository. OpenRAM's required spare row expands
+the physical address port to 11 bits; the consuming logical wrapper fixes the
+high bit low and exposes addresses 0 through 1023.
 
 The macro is intended for open-source simulation, synthesis, and development
 STA. OpenRAM DRC/LVS is not a release gate for this artifact, so the generated

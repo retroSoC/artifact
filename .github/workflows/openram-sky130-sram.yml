@@ -139,8 +139,8 @@ jobs:
             "macro cell declaration"
           require_text "word_width[[:space:]]*:[[:space:]]*32" "$TT_LIB" \
             "32-bit word width"
-          require_text "address_width[[:space:]]*:[[:space:]]*10" "$TT_LIB" \
-            "10-bit address width"
+          require_text "address_width[[:space:]]*:[[:space:]]*11" "$TT_LIB" \
+            "11-bit physical address width"
           require_text \
             "input[[:space:]]+\\[NUM_WMASKS-1:0\\][[:space:]]+wmask0" \
             "generated/${MACRO_NAME}.v" "byte-write mask port"
@@ -156,7 +156,7 @@ jobs:
             logic        web0 = 1'b1;
             logic [ 3:0] wmask0 = '0;
             logic        spare_wen0 = 1'b0;
-            logic [ 9:0] addr0 = '0;
+            logic [10:0] addr0 = '0;
             logic [32:0] din0 = '0;
             logic [32:0] dout0;
 
@@ -173,7 +173,7 @@ jobs:
                 .dout0 (dout0)
             );
 
-            task automatic write_word(input logic [9:0] address,
+            task automatic write_word(input logic [10:0] address,
                                       input logic [31:0] data,
                                       input logic [3:0] mask);
               @(negedge clk0);
@@ -189,7 +189,7 @@ jobs:
               wmask0 = '0;
             endtask
 
-            task automatic expect_word(input logic [9:0] address,
+            task automatic expect_word(input logic [10:0] address,
                                        input logic [31:0] expected);
               @(negedge clk0);
               csb0  = 1'b0;
@@ -206,11 +206,11 @@ jobs:
             endtask
 
             initial begin
-              write_word(10'd0, 32'h1122_3344, 4'hF);
-              write_word(10'd0, 32'hAABB_CCDD, 4'b0101);
-              write_word(10'd1023, 32'hCAFE_BABE, 4'hF);
-              expect_word(10'd0, 32'h11BB_33DD);
-              expect_word(10'd1023, 32'hCAFE_BABE);
+              write_word(11'd0, 32'h1122_3344, 4'hF);
+              write_word(11'd0, 32'hAABB_CCDD, 4'b0101);
+              write_word(11'd1023, 32'hCAFE_BABE, 4'hF);
+              expect_word(11'd0, 32'h11BB_33DD);
+              expect_word(11'd1023, 32'hCAFE_BABE);
               $display("OPENRAM_SKY130_SRAM_PASS");
               $finish;
             end
