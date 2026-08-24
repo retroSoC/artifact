@@ -19,6 +19,9 @@ check_lvsdrc = False
 analytical_delay = True
 uniquify = True
 
+process_corners = ["TT", "SS"]
+supply_voltages = [1.4, 1.8]
+temperatures = [25, 100]
 use_specified_corners = [
     ("TT", 1.8, 25),
     ("SS", 1.4, 100),
