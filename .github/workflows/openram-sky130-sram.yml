@@ -226,7 +226,7 @@ jobs:
                   "data_bits": 32,
                   "write_granularity_bits": 8,
                   "read_write_ports": 1,
-                  "spare_rows": 0,
+                  "spare_rows": 1,
                   "spare_columns": 1,
               },
               "corners": ["TT_1p8V_25C", "SS_1p4V_100C"],

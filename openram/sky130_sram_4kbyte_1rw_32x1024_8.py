@@ -10,7 +10,7 @@ write_size = 8
 num_rw_ports = 1
 num_r_ports = 0
 num_w_ports = 0
-num_spare_rows = 0
+num_spare_rows = 1
 num_spare_cols = 1
 
 tech_name = "sky130"
