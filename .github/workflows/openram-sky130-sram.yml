@@ -1,0 +1,283 @@
+---
+name: Build and Release SKY130 OpenRAM SRAM
+
+"on":
+  workflow_dispatch:
+    inputs:
+      runner_version:
+        description: "Ubuntu runner image used to generate the macro"
+        required: true
+        default: "ubuntu-22.04"
+      openram_ref:
+        description: "OpenRAM branch, tag, or commit hash"
+        required: true
+        default: "b2b069ce119d1488cbe6883b2240bceb5c7ce29a"
+
+permissions:
+  contents: write
+
+env:
+  MACRO_NAME: sky130_sram_4kbyte_1rw_32x1024_8
+  SKY130_CIEL_REVISION: e8294524e5f67c533c5d0c3afa0bcc5b2a5fa066
+  SKY130_BUILDSPACE_REVISION: dd64256961317205343a3fd446908b42bafba388
+
+jobs:
+  build-and-release:
+    runs-on: ${{ github.event.inputs.runner_version }}
+    steps:
+      - name: Checkout Artifact Repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24
+
+      - name: Resolve OpenRAM Source and Release Identity
+        run: |
+          git clone https://github.com/VLSIDA/OpenRAM.git OpenRAM
+          git -C OpenRAM checkout --detach \
+            "${{ github.event.inputs.openram_ref }}"
+          OPENRAM_COMMIT=$(git -C OpenRAM rev-parse HEAD)
+          OPENRAM_COMMIT_SHORT=$(git -C OpenRAM rev-parse --short=12 HEAD)
+          CONFIG_SHA256=$(sha256sum "openram/${MACRO_NAME}.py" | cut -d' ' -f1)
+          CONFIG_SHA256_SHORT=${CONFIG_SHA256:0:12}
+          RELEASE_TAG="openram-${MACRO_NAME}-${OPENRAM_COMMIT_SHORT}-"
+          RELEASE_TAG+="$CONFIG_SHA256_SHORT"
+          PACKAGE_NAME="${MACRO_NAME}-openram-${OPENRAM_COMMIT_SHORT}"
+
+          echo "OPENRAM_COMMIT=$OPENRAM_COMMIT" >> "$GITHUB_ENV"
+          echo "OPENRAM_COMMIT_SHORT=$OPENRAM_COMMIT_SHORT" >> "$GITHUB_ENV"
+          echo "CONFIG_SHA256=$CONFIG_SHA256" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+          echo "PACKAGE_NAME=$PACKAGE_NAME" >> "$GITHUB_ENV"
+
+      - name: Check for Existing Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists."
+            echo "SKIP_BUILD=true" >> "$GITHUB_ENV"
+          else
+            echo "SKIP_BUILD=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Prepare OpenRAM Environment and SKY130 Inputs
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          export OPENRAM_HOME="$GITHUB_WORKSPACE/OpenRAM/compiler"
+          export OPENRAM_TECH="$GITHUB_WORKSPACE/OpenRAM/technology"
+          export PDK_ROOT="$GITHUB_WORKSPACE/pdk"
+          mkdir -p "$PDK_ROOT"
+
+          nix develop ./OpenRAM --command \
+            python3 -m pip install --requirement OpenRAM/requirements.txt
+          nix develop ./OpenRAM --command \
+            make -C OpenRAM sky130-pdk
+          nix develop ./OpenRAM --command \
+            make -C OpenRAM sky130-install
+
+          test -f "$PDK_ROOT/sky130A/libs.tech/magic/sky130A.magicrc"
+          test "$(git -C "$PDK_ROOT/sky130_fd_bd_sram" rev-parse HEAD)" = \
+            "$SKY130_BUILDSPACE_REVISION"
+
+      - name: Generate SKY130 SRAM
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          export OPENRAM_HOME="$GITHUB_WORKSPACE/OpenRAM/compiler"
+          export OPENRAM_TECH="$GITHUB_WORKSPACE/OpenRAM/technology"
+          export OPENRAM_OUTPUT="$GITHUB_WORKSPACE/generated"
+          export PDK_ROOT="$GITHUB_WORKSPACE/pdk"
+          export SPICE_MODEL_DIR="$PDK_ROOT/sky130A/libs.tech/ngspice"
+          export PYTHONPATH="$OPENRAM_HOME"
+          mkdir -p "$OPENRAM_OUTPUT"
+
+          nix develop ./OpenRAM --command \
+            python3 OpenRAM/sram_compiler.py "openram/${MACRO_NAME}.py"
+
+      - name: Verify Generated Views
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          TT_LIB="generated/${MACRO_NAME}_TT_1p8V_25C.lib"
+          SS_LIB="generated/${MACRO_NAME}_SS_1p4V_100C.lib"
+          for suffix in v lef gds sp lvs.sp html py; do
+            test -s "generated/${MACRO_NAME}.${suffix}"
+          done
+          test -s "$TT_LIB"
+          test -s "$SS_LIB"
+          grep -Fq "cell (${MACRO_NAME})" "$TT_LIB"
+          grep -Fq "cell (${MACRO_NAME})" "$SS_LIB"
+          grep -Fq "word_width : 32" "$TT_LIB"
+          grep -Fq "address_width : 10" "$TT_LIB"
+          grep -Fq "input [NUM_WMASKS-1:0]   wmask0" \
+            "generated/${MACRO_NAME}.v"
+          if grep -Fq "spare_wen" "generated/${MACRO_NAME}.v"; then
+            echo "Generated macro unexpectedly exposes spare columns." >&2
+            exit 1
+          fi
+
+          cat > generated/smoke_tb.sv <<'EOF'
+          `timescale 1ns / 1ps
+
+          module smoke_tb;
+            logic        clk0 = 1'b0;
+            logic        csb0 = 1'b1;
+            logic        web0 = 1'b1;
+            logic [ 3:0] wmask0 = '0;
+            logic [ 9:0] addr0 = '0;
+            logic [31:0] din0 = '0;
+            logic [31:0] dout0;
+
+            always #10 clk0 = ~clk0;
+
+            sky130_sram_4kbyte_1rw_32x1024_8 u_sram (
+                .clk0  (clk0),
+                .csb0  (csb0),
+                .web0  (web0),
+                .wmask0(wmask0),
+                .addr0 (addr0),
+                .din0  (din0),
+                .dout0 (dout0)
+            );
+
+            task automatic write_word(input logic [9:0] address,
+                                      input logic [31:0] data,
+                                      input logic [3:0] mask);
+              @(negedge clk0);
+              csb0   = 1'b0;
+              web0   = 1'b0;
+              addr0  = address;
+              din0   = data;
+              wmask0 = mask;
+              @(posedge clk0);
+              @(negedge clk0);
+              csb0   = 1'b1;
+              web0   = 1'b1;
+              wmask0 = '0;
+            endtask
+
+            task automatic expect_word(input logic [9:0] address,
+                                       input logic [31:0] expected);
+              @(negedge clk0);
+              csb0  = 1'b0;
+              web0  = 1'b1;
+              addr0 = address;
+              @(posedge clk0);
+              @(negedge clk0);
+              #5;
+              if (dout0 !== expected) begin
+                $fatal(1, "address=%0d data=%08x expected=%08x",
+                       address, dout0, expected);
+              end
+              csb0 = 1'b1;
+            endtask
+
+            initial begin
+              write_word(10'd0, 32'h1122_3344, 4'hF);
+              write_word(10'd0, 32'hAABB_CCDD, 4'b0101);
+              write_word(10'd1023, 32'hCAFE_BABE, 4'hF);
+              expect_word(10'd0, 32'h11BB_33DD);
+              expect_word(10'd1023, 32'hCAFE_BABE);
+              $display("OPENRAM_SKY130_SRAM_PASS");
+              $finish;
+            end
+          endmodule
+          EOF
+          nix develop ./OpenRAM --command \
+            iverilog -g2012 -s smoke_tb -o generated/smoke.vvp \
+            "generated/${MACRO_NAME}.v" generated/smoke_tb.sv
+          nix develop ./OpenRAM --command vvp generated/smoke.vvp \
+            | tee generated/smoke.log
+          grep -Fxq "OPENRAM_SKY130_SRAM_PASS" generated/smoke.log
+          rm generated/smoke_tb.sv generated/smoke.vvp generated/smoke.log
+
+      - name: Create Manifest and Package
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          cp OpenRAM/LICENSE generated/LICENSE.OpenRAM-BSD-3-Clause
+          cp pdk/sky130_fd_bd_sram/LICENSE \
+            generated/LICENSE.SkyWater-Apache-2.0
+          cp "openram/${MACRO_NAME}.py" generated/INPUT_CONFIG.py
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          output = Path("generated")
+          files = {}
+          for path in sorted(
+              item for item in output.iterdir() if item.is_file()
+          ):
+              files[path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
+          manifest = {
+              "schema_version": 1,
+              "macro": os.environ["MACRO_NAME"],
+              "geometry": {
+                  "words": 1024,
+                  "data_bits": 32,
+                  "write_granularity_bits": 8,
+                  "read_write_ports": 1,
+                  "spare_rows": 0,
+                  "spare_columns": 0,
+              },
+              "corners": ["TT_1p8V_25C", "SS_1p4V_100C"],
+              "openram_commit": os.environ["OPENRAM_COMMIT"],
+              "sky130_ciel_revision": os.environ["SKY130_CIEL_REVISION"],
+              "sky130_buildspace_revision": os.environ[
+                  "SKY130_BUILDSPACE_REVISION"
+              ],
+              "input_config_sha256": os.environ["CONFIG_SHA256"],
+              "analytical_characterization": True,
+              "drc_lvs_checked": False,
+              "files": files,
+          }
+          (output / "manifest.json").write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          (
+            cd generated
+            sha256sum -- * > SHA256SUMS
+          )
+          mkdir -p dist
+          tar -czf "dist/${PACKAGE_NAME}.tar.gz" -C generated .
+          sha256sum "dist/${PACKAGE_NAME}.tar.gz" \
+            > "dist/${PACKAGE_NAME}.tar.gz.sha256"
+          sha256sum --check "dist/${PACKAGE_NAME}.tar.gz.sha256"
+
+      - name: Upload to Actions Artifacts
+        if: env.SKIP_BUILD == 'false'
+        uses: >-
+          actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ env.PACKAGE_NAME }}
+          path: |
+            dist/${{ env.PACKAGE_NAME }}.tar.gz
+            dist/${{ env.PACKAGE_NAME }}.tar.gz.sha256
+          retention-days: 90
+
+      - name: Publish to GitHub Release
+        if: env.SKIP_BUILD == 'false'
+        uses: >-
+          softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: SKY130 OpenRAM SRAM ${{ env.MACRO_NAME }}
+          body: |
+            OpenRAM-generated SKY130 SRAM for retroSoC development flows.
+
+            - Geometry: `1024 x 32`, single read/write port
+            - Write granularity: 8 bits
+            - OpenRAM: `${{ env.OPENRAM_COMMIT }}`
+            - SKY130 Ciel: `${{ env.SKY130_CIEL_REVISION }}`
+            - SKY130 SRAM build space: `${{ env.SKY130_BUILDSPACE_REVISION }}`
+            - Liberty: TT 1.8 V/25 C and SS 1.4 V/100 C
+
+            OpenRAM DRC/LVS was intentionally not used as a release gate.
+            LEF/GDS/SPICE views are development collateral, not foundry
+            production-signoff evidence.
+          files: |
+            dist/${{ env.PACKAGE_NAME }}.tar.gz
+            dist/${{ env.PACKAGE_NAME }}.tar.gz.sha256

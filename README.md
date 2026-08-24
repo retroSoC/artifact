@@ -13,3 +13,15 @@ The archive extracts a `riscv/` directory. Add `riscv/bin` to `PATH` to use
 `riscv32-unknown-elf-gcc`. The artifact supports standard RISC-V extensions
 only; Hazard3-specific `Xh3bextm` and `Xh3irq` instructions still require a
 patched toolchain or explicitly encoded assembly.
+
+## SKY130 OpenRAM SRAM
+
+The **Build and Release SKY130 OpenRAM SRAM** workflow generates a single-port
+`1024 x 32` SRAM with byte-write support. The release contains generated
+Verilog, Liberty, LEF, GDS, SPICE, LVS SPICE, configuration, datasheet, source
+manifest, licenses, and checksums. Generated macro views are release artifacts
+and are not committed to this repository.
+
+The macro is intended for open-source simulation, synthesis, and development
+STA. OpenRAM DRC/LVS is not a release gate for this artifact, so the generated
+physical views are not foundry signoff evidence.
