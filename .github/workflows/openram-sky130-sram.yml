@@ -184,6 +184,7 @@ jobs:
               wmask0 = mask;
               @(posedge clk0);
               @(negedge clk0);
+              #1;
               csb0   = 1'b1;
               web0   = 1'b1;
               wmask0 = '0;
