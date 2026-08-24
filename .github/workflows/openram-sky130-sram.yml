@@ -119,10 +119,8 @@ jobs:
           grep -Fq "address_width : 10" "$TT_LIB"
           grep -Fq "input [NUM_WMASKS-1:0]   wmask0" \
             "generated/${MACRO_NAME}.v"
-          if grep -Fq "spare_wen" "generated/${MACRO_NAME}.v"; then
-            echo "Generated macro unexpectedly exposes spare columns." >&2
-            exit 1
-          fi
+          grep -Fq "input           spare_wen0" \
+            "generated/${MACRO_NAME}.v"
 
           cat > generated/smoke_tb.sv <<'EOF'
           `timescale 1ns / 1ps
@@ -132,9 +130,10 @@ jobs:
             logic        csb0 = 1'b1;
             logic        web0 = 1'b1;
             logic [ 3:0] wmask0 = '0;
+            logic        spare_wen0 = 1'b0;
             logic [ 9:0] addr0 = '0;
-            logic [31:0] din0 = '0;
-            logic [31:0] dout0;
+            logic [32:0] din0 = '0;
+            logic [32:0] dout0;
 
             always #10 clk0 = ~clk0;
 
@@ -143,6 +142,7 @@ jobs:
                 .csb0  (csb0),
                 .web0  (web0),
                 .wmask0(wmask0),
+                .spare_wen0(spare_wen0),
                 .addr0 (addr0),
                 .din0  (din0),
                 .dout0 (dout0)
@@ -155,7 +155,7 @@ jobs:
               csb0   = 1'b0;
               web0   = 1'b0;
               addr0  = address;
-              din0   = data;
+              din0   = {1'b0, data};
               wmask0 = mask;
               @(posedge clk0);
               @(negedge clk0);
@@ -173,9 +173,9 @@ jobs:
               @(posedge clk0);
               @(negedge clk0);
               #5;
-              if (dout0 !== expected) begin
+              if (dout0[31:0] !== expected) begin
                 $fatal(1, "address=%0d data=%08x expected=%08x",
-                       address, dout0, expected);
+                       address, dout0[31:0], expected);
               end
               csb0 = 1'b1;
             endtask
@@ -227,7 +227,7 @@ jobs:
                   "write_granularity_bits": 8,
                   "read_write_ports": 1,
                   "spare_rows": 0,
-                  "spare_columns": 0,
+                  "spare_columns": 1,
               },
               "corners": ["TT_1p8V_25C", "SS_1p4V_100C"],
               "openram_commit": os.environ["OPENRAM_COMMIT"],
