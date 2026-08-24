@@ -1,0 +1,303 @@
+---
+name: Build and Release Hazard3 RISC-V GNU Toolchain
+
+"on":
+  workflow_dispatch:
+    inputs:
+      runner_version:
+        description: "Ubuntu runner image used to build the artifact"
+        required: true
+        default: "ubuntu-22.04"
+      riscv_gnu_ref:
+        description: "riscv-gnu-toolchain branch, tag, or commit hash"
+        required: true
+        default: "master"
+      hazard3_ref:
+        description: >-
+          Hazard3 branch, tag, or commit hash for the multilib matrix
+        required: true
+        default: "stable"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ${{ github.event.inputs.runner_version }}
+    steps:
+      - name: Checkout Artifact Repository
+        uses: actions/checkout@v4
+
+      - name: Determine Target Configuration
+        run: |
+          RUNNER_VERSION="ubuntu-22.04"
+          RISCV_GNU_REF="master"
+          HAZARD3_REF="stable"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            RUNNER_VERSION="${{ github.event.inputs.runner_version }}"
+            RISCV_GNU_REF="${{ github.event.inputs.riscv_gnu_ref }}"
+            HAZARD3_REF="${{ github.event.inputs.hazard3_ref }}"
+          fi
+          echo "RUNNER_VERSION=$RUNNER_VERSION" >> "$GITHUB_ENV"
+          echo "RISCV_GNU_REF=$RISCV_GNU_REF" >> "$GITHUB_ENV"
+          echo "HAZARD3_REF=$HAZARD3_REF" >> "$GITHUB_ENV"
+
+      - name: Resolve RISC-V GNU Toolchain and Hazard3 Sources
+        run: |
+          git clone https://github.com/riscv-collab/riscv-gnu-toolchain.git \
+            riscv-gnu-toolchain
+          git -C riscv-gnu-toolchain checkout --detach "$RISCV_GNU_REF"
+          git -C riscv-gnu-toolchain submodule update --init --recursive
+
+          git clone https://github.com/Wren6991/Hazard3.git hazard3
+          git -C hazard3 checkout --detach "$HAZARD3_REF"
+          git -C hazard3 submodule update --init --recursive
+
+          RISCV_GNU_COMMIT=$(git -C riscv-gnu-toolchain rev-parse HEAD)
+          RISCV_GNU_COMMIT_SHORT=$(git -C riscv-gnu-toolchain \
+            rev-parse --short=12 HEAD)
+          HAZARD3_COMMIT=$(git -C hazard3 rev-parse HEAD)
+          HAZARD3_COMMIT_SHORT=$(git -C hazard3 rev-parse --short=12 HEAD)
+          RELEASE_TAG="riscv-gnu-hazard3-${RISCV_GNU_COMMIT_SHORT}-"
+          RELEASE_TAG+="$HAZARD3_COMMIT_SHORT"
+          RISCV_GNU_SOURCE_URL="https://github.com/riscv-collab/"
+          RISCV_GNU_SOURCE_URL+="riscv-gnu-toolchain/tree/$RISCV_GNU_COMMIT"
+          HAZARD3_SOURCE_URL="https://github.com/Wren6991/"
+          HAZARD3_SOURCE_URL+="Hazard3/tree/$HAZARD3_COMMIT"
+
+          echo "RISCV_GNU_COMMIT=$RISCV_GNU_COMMIT" >> "$GITHUB_ENV"
+          echo "RISCV_GNU_COMMIT_SHORT=$RISCV_GNU_COMMIT_SHORT" >> "$GITHUB_ENV"
+          echo "HAZARD3_COMMIT=$HAZARD3_COMMIT" >> "$GITHUB_ENV"
+          echo "HAZARD3_COMMIT_SHORT=$HAZARD3_COMMIT_SHORT" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+          echo "RISCV_GNU_SOURCE_URL=$RISCV_GNU_SOURCE_URL" >> "$GITHUB_ENV"
+          echo "HAZARD3_SOURCE_URL=$HAZARD3_SOURCE_URL" >> "$GITHUB_ENV"
+
+      - name: Check for Existing Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists."
+            echo "SKIP_BUILD=true" >> "$GITHUB_ENV"
+          else
+            echo "SKIP_BUILD=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Prepare Hazard3 Multilib Configuration
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          python3 hazard3/test/sim/common/multilib-gen-gen.py \
+            > hazard3-multilib.txt
+          HAZARD3_BASE_MULTILIB=$(sed -n '1p' hazard3-multilib.txt)
+          HAZARD3_BASE_MULTILIB_COUNT=$(sed -n '2p' hazard3-multilib.txt)
+          test -n "$HAZARD3_BASE_MULTILIB"
+          case "$HAZARD3_BASE_MULTILIB_COUNT" in
+            *[!0-9]* | '')
+              echo "Hazard3 multilib generator returned a nonnumeric count." >&2
+              exit 1
+              ;;
+          esac
+
+          # These are the two full standard-extension configurations omitted
+          # by Hazard3's GCC-14-era generator because it predates Zilsd.
+          RETROSOC_MARCH=rv32imac_zicsr_zifencei_zba_zbb_zbc_zbkb_zbkx_zbs_zilsd
+          HAZARD3_DEFAULT_MARCH=rv32ima_zba_zbb_zbc_zbkb_zbkx_zbs_
+          HAZARD3_DEFAULT_MARCH+=zca_zcb_zcmp_zicsr_zifencei_zilsd_zclsd
+          MULTILIB_GENERATOR="${HAZARD3_BASE_MULTILIB};${RETROSOC_MARCH}-ilp32--;"
+          MULTILIB_GENERATOR+="${HAZARD3_DEFAULT_MARCH}-ilp32--"
+          MULTILIB_COUNT=$((HAZARD3_BASE_MULTILIB_COUNT + 2))
+
+          echo "RETROSOC_MARCH=$RETROSOC_MARCH" >> "$GITHUB_ENV"
+          echo "HAZARD3_DEFAULT_MARCH=$HAZARD3_DEFAULT_MARCH" >> "$GITHUB_ENV"
+          echo "MULTILIB_GENERATOR=$MULTILIB_GENERATOR" >> "$GITHUB_ENV"
+          echo "MULTILIB_COUNT=$MULTILIB_COUNT" >> "$GITHUB_ENV"
+
+      - name: Install Build Dependencies
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            autoconf automake autotools-dev bc bison build-essential \
+            ca-certificates cmake curl flex gawk gperf git libexpat-dev \
+            libglib2.0-dev libgmp-dev libmpc-dev libmpfr-dev libslirp-dev \
+            libncurses-dev libtool make ninja-build patchutils pkg-config \
+            python3 python3-pip texinfo tree zlib1g-dev
+
+      - name: Build Hazard3 GNU Toolchain
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          mkdir -p staging
+          cd riscv-gnu-toolchain
+          ./configure \
+            --prefix="$GITHUB_WORKSPACE/staging/riscv" \
+            --with-arch=rv32ia_zicsr_zifencei \
+            --with-abi=ilp32 \
+            --with-multilib-generator="$MULTILIB_GENERATOR"
+          make -j"$(nproc)"
+          test -x "$GITHUB_WORKSPACE/staging/riscv/bin/riscv32-unknown-elf-gcc"
+
+      - name: Verify Hazard3 ISA and Multilib Support
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          TOOLCHAIN_ROOT="$GITHUB_WORKSPACE/staging/riscv"
+          TOOLCHAIN_BIN="$TOOLCHAIN_ROOT/bin"
+          GCC="$TOOLCHAIN_BIN/riscv32-unknown-elf-gcc"
+          AS="$TOOLCHAIN_BIN/riscv32-unknown-elf-as"
+          export PATH="$TOOLCHAIN_BIN:$PATH"
+
+          "$GCC" --version
+          "$AS" --version | head -1
+          "$GCC" -march=help -c -x c /dev/null -o /tmp/hazard3-march-help.o \
+            > hazard3-march-help.txt
+          grep -Eq '^[[:space:]]*zilsd[[:space:]]' hazard3-march-help.txt
+          grep -Eq '^[[:space:]]*zclsd[[:space:]]' hazard3-march-help.txt
+
+          "$GCC" --print-multi-lib > hazard3-multilib-built.txt
+          RETROSOC_LIBC=$("$GCC" -march="$RETROSOC_MARCH" -mabi=ilp32 \
+            -print-file-name=libc.a)
+          HAZARD3_DEFAULT_LIBC=$("$GCC" -march="$HAZARD3_DEFAULT_MARCH" \
+            -mabi=ilp32 \
+            -print-file-name=libc.a)
+          test -f "$RETROSOC_LIBC"
+          test -f "$HAZARD3_DEFAULT_LIBC"
+
+          mkdir -p hazard3-toolchain-smoke
+          cat > hazard3-toolchain-smoke/extensions.S <<'EOF'
+          .text
+          .globl extension_smoke
+          extension_smoke:
+            amoadd.w a0, a1, (a2)
+            c.addi a0, 1
+            csrr a0, mstatus
+            fence.i
+            sh1add a0, a1, a2
+            andn a0, a1, a2
+            clmul a0, a1, a2
+            zip a0, a1
+            xperm8 a0, a1, a2
+            bset a0, a1, a2
+            ret
+          EOF
+          "$GCC" -march="$RETROSOC_MARCH" -mabi=ilp32 \
+            -c hazard3-toolchain-smoke/extensions.S \
+            -o hazard3-toolchain-smoke/extensions.o
+
+          cat > hazard3-toolchain-smoke/zilsd.c <<'EOF'
+          #include <stdint.h>
+
+          volatile uint64_t *source;
+
+          uint64_t hazard3_load64(void) {
+              return *source;
+          }
+          EOF
+          "$GCC" -O2 -march="$RETROSOC_MARCH" -mabi=ilp32 \
+            -S hazard3-toolchain-smoke/zilsd.c \
+            -o hazard3-toolchain-smoke/zilsd.s
+          grep -Eq '^[[:space:]]*ld[[:space:]]' hazard3-toolchain-smoke/zilsd.s
+          "$GCC" -march="$HAZARD3_DEFAULT_MARCH" -mabi=ilp32 \
+            -c hazard3-toolchain-smoke/zilsd.c \
+            -o hazard3-toolchain-smoke/hazard3-default.o
+
+          GCC_VERSION=$("$GCC" -dumpfullversion -dumpversion)
+          BINUTILS_VERSION=$("$AS" --version | sed -n '1p')
+          {
+            echo "riscv_gnu_ref=$RISCV_GNU_REF"
+            echo "riscv_gnu_commit=$RISCV_GNU_COMMIT"
+            echo "hazard3_ref=$HAZARD3_REF"
+            echo "hazard3_commit=$HAZARD3_COMMIT"
+            echo "gcc_version=$GCC_VERSION"
+            echo "binutils_version=$BINUTILS_VERSION"
+            echo "target=riscv32-unknown-elf"
+            echo "base_arch=rv32ia_zicsr_zifencei"
+            echo "base_abi=ilp32"
+            echo "multilib_count=$MULTILIB_COUNT"
+            echo "retrosoc_march=$RETROSOC_MARCH"
+            echo "hazard3_default_march=$HAZARD3_DEFAULT_MARCH"
+            echo "unsupported_private_extensions=Xh3bextm,Xh3irq"
+          } > "$TOOLCHAIN_ROOT/HAZARD3_TOOLCHAIN_MANIFEST.txt"
+          echo "GCC_VERSION=$GCC_VERSION" >> "$GITHUB_ENV"
+          echo "BINUTILS_VERSION=$BINUTILS_VERSION" >> "$GITHUB_ENV"
+
+      - name: Package Artifact and Generate SHA256
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          PACKAGE_NAME="riscv32-elf-${RUNNER_VERSION}-hazard3-gcc-${GCC_VERSION}-${RISCV_GNU_COMMIT_SHORT}"
+          mkdir -p dist
+          tar -cJf "dist/${PACKAGE_NAME}.tar.xz" -C staging riscv
+          sha256sum "dist/${PACKAGE_NAME}.tar.xz" \
+            > "dist/${PACKAGE_NAME}.tar.xz.sha256"
+          sha256sum --check "dist/${PACKAGE_NAME}.tar.xz.sha256"
+          echo "PACKAGE_NAME=$PACKAGE_NAME" >> "$GITHUB_ENV"
+
+      - name: Smoke Test Packaged Toolchain
+        if: env.SKIP_BUILD == 'false'
+        run: |
+          mkdir packaged-toolchain-smoke
+          tar -xJf "dist/${PACKAGE_NAME}.tar.xz" -C packaged-toolchain-smoke
+          PACKAGED_ROOT="$GITHUB_WORKSPACE/packaged-toolchain-smoke/riscv"
+          PACKAGED_GCC="$PACKAGED_ROOT/bin/riscv32-unknown-elf-gcc"
+          test -x "$PACKAGED_GCC"
+          "$PACKAGED_GCC" --version
+          PACKAGED_LIBC=$("$PACKAGED_GCC" -march="$RETROSOC_MARCH" -mabi=ilp32 \
+            -print-file-name=libc.a)
+          test -f "$PACKAGED_LIBC"
+          case "$PACKAGED_LIBC" in
+            "$PACKAGED_ROOT"/*) ;;
+            *)
+              echo "Packaged compiler resolved libc outside the artifact:" >&2
+              echo "$PACKAGED_LIBC" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Upload to Actions Artifacts
+        if: env.SKIP_BUILD == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PACKAGE_NAME }}
+          path: |
+            dist/${{ env.PACKAGE_NAME }}.tar.xz
+            dist/${{ env.PACKAGE_NAME }}.tar.xz.sha256
+          retention-days: 90
+
+      - name: Publish to GitHub Release
+        if: env.SKIP_BUILD == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: >-
+            Hazard3 RISC-V GNU Toolchain ${{ env.GCC_VERSION }}
+          body: |
+            Automated bare-metal RISC-V GNU Toolchain build for Hazard3.
+
+            **RISC-V GNU Toolchain Source:**
+            ${{ env.RISCV_GNU_SOURCE_URL }}
+
+            **Hazard3 Multilib Source:**
+            ${{ env.HAZARD3_SOURCE_URL }}
+
+            **Compiler:** GCC `${{ env.GCC_VERSION }}`
+
+            **Binutils:** `${{ env.BINUTILS_VERSION }}`
+
+            The archive contains ${{ env.MULTILIB_COUNT }} Newlib multilib
+            profiles: Hazard3's upstream matrix plus full standard-extension
+            profiles for retroSoC and Hazard3's default configuration with
+            `Zilsd`/`Zclsd`.
+
+            Hazard3-private `Xh3bextm` and `Xh3irq` extensions are not
+            supported by upstream GNU GCC/binutils and are intentionally not
+            included.
+
+            ### Usage
+            1. Download `${{ env.PACKAGE_NAME }}.tar.xz`.
+            2. Verify it with `${{ env.PACKAGE_NAME }}.tar.xz.sha256`.
+            3. Extract: `tar -xJf ${{ env.PACKAGE_NAME }}.tar.xz`.
+            4. Add `riscv/bin` to `PATH`.
+            5. Run `riscv32-unknown-elf-gcc --version`.
+          files: |
+            dist/${{ env.PACKAGE_NAME }}.tar.xz
+            dist/${{ env.PACKAGE_NAME }}.tar.xz.sha256
