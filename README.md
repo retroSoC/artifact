@@ -1,6 +1,16 @@
 # artifact
 artifacts for various open-source EDA tools
 
+## MLPerf Tiny Visual Wake Words Reference Dataset
+
+The `npu-vww-dataset-f8746b9e44f8` release mirrors the byte-identical
+`vw_coco2014_96.tar.gz` archive used by the retroSoC Mini NPU reference flow.
+The release includes a SHA-256 sidecar, while
+[`datasets/npu-vww/README.md`](datasets/npu-vww/README.md) records the original
+Silicon Labs URL, both upstream hashes, the exact byte count, and the licensing
+boundary. The dataset is a release asset and is not committed to this
+repository.
+
 ## Hazard3 RISC-V GNU Toolchain
 
 The **Build and Release Hazard3 RISC-V GNU Toolchain** workflow builds a
